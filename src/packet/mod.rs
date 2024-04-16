@@ -1,7 +1,7 @@
 use crate::packet::c2s::PlayerIdent;
+use anyhow::Result;
 use core::fmt::Debug;
 use std::str::FromStr;
-use anyhow::Result;
 
 use self::c2s::{C2SPacket, Message, PacketReader, Position, SetBlock};
 
@@ -63,13 +63,18 @@ impl FromStr for PacketString {
 
 impl ToString for PacketString {
     fn to_string(&self) -> String {
-        String::from_utf8(self.0.to_vec()).unwrap().trim_end_matches(' ').to_string()
+        String::from_utf8(self.0.to_vec())
+            .unwrap()
+            .trim_end_matches(' ')
+            .to_string()
     }
 }
 
 impl Debug for PacketString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PacketString").field("data", &self.to_string()).finish()
+        f.debug_struct("PacketString")
+            .field("data", &self.to_string())
+            .finish()
     }
 }
 
@@ -83,31 +88,13 @@ pub enum ClientPacketID {
 }
 }
 
-// pub enum ServerPacketID {
-//     PlayerIdent        = 0x00,
-//     Ping               = 0x01,
-//     LevelInit          = 0x02,
-//     LevelDataChunk     = 0x03,
-//     LevelFinalise      = 0x04,
-//     SetBlock           = 0x06,
-//     SpawnPlayer        = 0x07,
-//     PlayerTeleport     = 0x08,
-//     PlayerPosOriUpdate = 0x09,
-//     PlayerPosUpdate    = 0x0a,
-//     PlayerOriUpdate    = 0x0b,
-//     DespawnPlayer      = 0x0c,
-//     Message            = 0x0d,
-//     DisconnectPlayer   = 0x0e,
-//     UpdateUserType     = 0x0f,
-// }
-
 impl ClientPacketID {
     pub fn size(&self) -> usize {
         match self {
             ClientPacketID::PlayerIdent => 1 + 2 * PacketString::LENGTH + 1,
-            ClientPacketID::SetBlock => 5,
-            ClientPacketID::Position => 8,
-            ClientPacketID::Message => 2 + 1024,
+            ClientPacketID::SetBlock => 3 * 2 + 2,
+            ClientPacketID::Position => 1 + 3 * 2 + 2,
+            ClientPacketID::Message => 1 + 1024,
         }
     }
 

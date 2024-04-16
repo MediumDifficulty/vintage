@@ -1,9 +1,16 @@
+use anyhow::Result;
 use enum_primitive::FromPrimitive;
 use evenio::prelude::*;
-use tokio::{io::AsyncReadExt, net::{TcpListener, TcpStream}, sync::mpsc};
+use tokio::{
+    io::AsyncReadExt,
+    net::{TcpListener, TcpStream},
+    sync::mpsc,
+};
 use tracing::{debug, info, warn, Level};
-use vintage::packet::{c2s::{C2SPacket, PacketReader}, ClientPacketID};
-use anyhow::Result;
+use vintage::packet::{
+    c2s::{C2SPacket, PacketReader},
+    ClientPacketID,
+};
 
 #[derive(Event)]
 struct PacketEvent;
@@ -26,7 +33,7 @@ async fn main() {
     world.add_handler(tick_handler);
 
     let (tx, mut rx) = mpsc::channel(100);
-    
+
     tokio::spawn(listener(tx));
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
 
@@ -62,14 +69,15 @@ async fn handle_client(mut socket: TcpStream, tx: mpsc::Sender<Box<dyn C2SPacket
             Some(packet_id) => packet_id,
             None => {
                 warn!("Invalid packet_id");
-                continue
+                continue;
             },
         };
         debug!("Packet ID: {packet_id:?}");
         let mut packet_buf = vec![0u8; packet_id.size()];
         socket.read_exact(&mut packet_buf).await?;
 
-        let packet = packet_id.deserialise(&mut PacketReader::new(packet_buf))
+        let packet = packet_id
+            .deserialise(&mut PacketReader::new(packet_buf))
             .unwrap();
 
         tx.send(packet).await?;

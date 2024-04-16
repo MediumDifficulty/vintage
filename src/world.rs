@@ -59,11 +59,10 @@ pub enum Block {
 }
 }
 
-
 #[derive(Component)]
 struct Player;
 
 #[derive(Component)]
 struct ConnectionStream {
-    sender: mpsc::Sender<Box<dyn S2CPacket>>
+    sender: mpsc::Sender<Box<dyn S2CPacket>>,
 }

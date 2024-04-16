@@ -1,4 +1,8 @@
-use std::{fmt::Debug, io::{Cursor, Write}, str::FromStr};
+use std::{
+    fmt::Debug,
+    io::{Cursor, Write},
+    str::FromStr,
+};
 
 use anyhow::Result;
 use byteorder::{BigEndian, WriteBytesExt};
@@ -6,44 +10,44 @@ use byteorder::{BigEndian, WriteBytesExt};
 use super::{Byte, ByteArray, FByte, FShort, PacketString, SByte, Short};
 
 pub struct PacketWriter {
-    buffer: Cursor<Vec<u8>>
+    buffer: Cursor<Vec<u8>>,
 }
 
 impl PacketWriter {
     pub fn new(data: Vec<u8>) -> PacketWriter {
         PacketWriter {
-            buffer: Cursor::new(data)
+            buffer: Cursor::new(data),
         }
     }
 
     pub fn new_empty() -> PacketWriter {
         PacketWriter {
-            buffer: Cursor::new(Vec::new())
+            buffer: Cursor::new(Vec::new()),
         }
     }
 
     pub fn new_with_capacity(capacity: usize) -> PacketWriter {
         PacketWriter {
-            buffer: Cursor::new(Vec::with_capacity(capacity))
+            buffer: Cursor::new(Vec::with_capacity(capacity)),
         }
     }
-    
+
     pub fn write_byte(&mut self, b: Byte) -> Result<()> {
         Ok(self.buffer.write_u8(b)?)
     }
-    
+
     pub fn write_sbyte(&mut self, b: SByte) -> Result<()> {
         Ok(self.buffer.write_i8(b)?)
     }
-    
+
     pub fn write_fbyte(&mut self, b: &FByte) -> Result<()> {
         Ok(self.buffer.write_i8(b.0)?)
     }
-    
+
     pub fn write_short(&mut self, s: Short) -> Result<()> {
         Ok(self.buffer.write_i16::<BigEndian>(s)?)
     }
-    
+
     pub fn write_fshort(&mut self, s: &FShort) -> Result<()> {
         Ok(self.buffer.write_i16::<BigEndian>(s.0)?)
     }
@@ -156,7 +160,7 @@ pub struct SetBlock {
     x: Short,
     y: Short,
     z: Short,
-    block_type: Byte
+    block_type: Byte,
 }
 
 impl S2CPacket for SetBlock {

@@ -1,5 +1,8 @@
-use std::{fmt::Debug, io::{Cursor, Read}};
 use anyhow::Result;
+use std::{
+    fmt::Debug,
+    io::{Cursor, Read},
+};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use evenio::world::World;
@@ -10,13 +13,13 @@ use crate::event::PlayerJoinEvent;
 use super::{Byte, FByte, FShort, PacketString, SByte, Short};
 
 pub struct PacketReader {
-    buffer: Cursor<Vec<u8>>
+    buffer: Cursor<Vec<u8>>,
 }
 
 impl PacketReader {
     pub fn new(data: Vec<u8>) -> PacketReader {
         PacketReader {
-            buffer: Cursor::new(data)
+            buffer: Cursor::new(data),
         }
     }
 
@@ -61,9 +64,10 @@ impl PacketReader {
 
 pub trait C2SPacket: Send + Sync + Debug {
     fn exec(&self, world: &mut World);
-    fn deserialise(reader: &mut PacketReader) -> Result<Self> where Self: Sized;
+    fn deserialise(reader: &mut PacketReader) -> Result<Self>
+    where
+        Self: Sized;
 }
-
 
 #[derive(Debug)]
 pub struct PlayerIdent {
@@ -83,7 +87,10 @@ impl C2SPacket for PlayerIdent {
         })
     }
 
-    fn deserialise(reader: &mut PacketReader) -> Result<Self> where Self: Sized {
+    fn deserialise(reader: &mut PacketReader) -> Result<Self>
+    where
+        Self: Sized,
+    {
         let protocol_version = reader.read_byte();
         let username = reader.read_string()?;
         let verification_key = reader.read_string()?;
@@ -110,7 +117,10 @@ impl C2SPacket for SetBlock {
         todo!()
     }
 
-    fn deserialise(reader: &mut PacketReader) -> Result<Self> where Self: Sized {
+    fn deserialise(reader: &mut PacketReader) -> Result<Self>
+    where
+        Self: Sized,
+    {
         let x = reader.read_short();
         let y = reader.read_short();
         let z = reader.read_short();
@@ -142,7 +152,10 @@ impl C2SPacket for Position {
         todo!()
     }
 
-    fn deserialise(reader: &mut PacketReader) -> Result<Self> where Self: Sized {
+    fn deserialise(reader: &mut PacketReader) -> Result<Self>
+    where
+        Self: Sized,
+    {
         let player_id = reader.read_sbyte();
         let x = reader.read_fshort();
         let y = reader.read_fshort();
@@ -172,13 +185,13 @@ impl C2SPacket for Message {
         todo!()
     }
 
-    fn deserialise(reader: &mut PacketReader) -> Result<Self> where Self: Sized {
+    fn deserialise(reader: &mut PacketReader) -> Result<Self>
+    where
+        Self: Sized,
+    {
         let player_id = reader.read_sbyte();
         let message = reader.read_string()?;
 
-        Ok(Self {
-            player_id,
-            message,
-        })
+        Ok(Self { player_id, message })
     }
 }
