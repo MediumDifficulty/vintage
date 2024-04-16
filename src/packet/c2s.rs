@@ -3,28 +3,29 @@ use anyhow::Result;
 
 use byteorder::{BigEndian, ReadBytesExt};
 use evenio::world::World;
+use tracing::warn;
 
 use crate::event::PlayerJoinEvent;
 
 use super::{Byte, FByte, FShort, PacketString, SByte, Short};
 
 pub struct PacketReader {
-    reader: Cursor<Vec<u8>>
+    buffer: Cursor<Vec<u8>>
 }
 
 impl PacketReader {
     pub fn new(data: Vec<u8>) -> PacketReader {
         PacketReader {
-            reader: Cursor::new(data)
+            buffer: Cursor::new(data)
         }
     }
 
     pub fn read_byte(&mut self) -> Byte {
-        self.reader.read_u8().unwrap()
+        self.buffer.read_u8().unwrap()
     }
 
     pub fn read_sbyte(&mut self) -> SByte {
-        self.reader.read_i8().unwrap()
+        self.buffer.read_i8().unwrap()
     }
 
     pub fn read_fbyte(&mut self) -> FByte {
@@ -33,18 +34,18 @@ impl PacketReader {
     }
 
     pub fn read_short(&mut self) -> Short {
-        self.reader.read_i16::<BigEndian>().unwrap()
+        self.buffer.read_i16::<BigEndian>().unwrap()
     }
 
     pub fn read_fshort(&mut self) -> FShort {
-        let s = self.reader.read_i16::<BigEndian>().unwrap();
+        let s = self.buffer.read_i16::<BigEndian>().unwrap();
         FShort(s)
     }
 
     pub fn read_string(&mut self) -> Result<PacketString> {
         let mut buf = [0; PacketString::LENGTH];
 
-        self.reader.read_exact(&mut buf)?;
+        self.buffer.read_exact(&mut buf)?;
 
         Ok(PacketString::new(buf))
     }
@@ -52,7 +53,7 @@ impl PacketReader {
     pub fn read_byte_array(&mut self) -> Result<[u8; 1024]> {
         let mut buf = [0; 1024];
 
-        self.reader.read_exact(&mut buf)?;
+        self.buffer.read_exact(&mut buf)?;
 
         Ok(buf)
     }
@@ -73,7 +74,13 @@ pub struct PlayerIdent {
 
 impl C2SPacket for PlayerIdent {
     fn exec(&self, world: &mut World) {
-        world.send(PlayerJoinEvent {})
+        if self.protocol_version < 7 {
+            warn!("Client's protocol version in less than 7")
+        }
+
+        world.send(PlayerJoinEvent {
+            username: self.username.to_string(),
+        })
     }
 
     fn deserialise(reader: &mut PacketReader) -> Result<Self> where Self: Sized {
