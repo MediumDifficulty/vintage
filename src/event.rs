@@ -1,7 +1,7 @@
 use evenio::event::Event;
 use glam::{IVec3, Vec3};
 
-use crate::world::Block;
+use crate::world::{Block, PlayerId};
 
 #[derive(Debug, Event)]
 pub struct PlayerJoinEvent {
@@ -17,12 +17,12 @@ pub struct SetBlockEvent {
 
 #[derive(Debug, Event)]
 pub struct PlayerMoveEvent {
-    player_name: String,
+    player_id: PlayerId,
     pos: Vec3,
 }
 
 #[derive(Debug, Event)]
 pub struct PlayerMessageEvent {
-    player_name: String,
+    player_id: PlayerId,
     message: String,
 }

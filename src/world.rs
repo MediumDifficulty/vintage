@@ -1,4 +1,5 @@
 use evenio::component::Component;
+use glam::Vec3;
 use tokio::sync::mpsc;
 
 use crate::packet::s2c::S2CPacket;
@@ -59,10 +60,24 @@ pub enum Block {
 }
 }
 
-#[derive(Component)]
-struct Player;
+pub type PlayerId = i8;
 
 #[derive(Component)]
-struct ConnectionStream {
+struct Player {
+    name: String,
+    id: PlayerId,
+}
+
+#[derive(Component)]
+struct ClientConnection {
     sender: mpsc::Sender<Box<dyn S2CPacket>>,
+}
+
+#[derive(Component)]
+struct Position(Vec3);
+
+#[derive(Component)]
+struct Rotation {
+    pitch: f32,
+    yaw: f32,
 }

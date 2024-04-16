@@ -1,9 +1,9 @@
-use crate::packet::c2s::PlayerIdent;
+use crate::packet::c2s::PlayerIdentPacket;
 use anyhow::Result;
 use core::fmt::Debug;
 use std::str::FromStr;
 
-use self::c2s::{C2SPacket, Message, PacketReader, Position, SetBlock};
+use self::c2s::{C2SPacket, MessagePacket, PacketReader, PositionPacket, SetBlockPacket};
 
 pub mod c2s;
 pub mod s2c;
@@ -100,10 +100,10 @@ impl ClientPacketID {
 
     pub fn deserialise(&self, reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
         match self {
-            ClientPacketID::PlayerIdent => Ok(Box::new(PlayerIdent::deserialise(reader)?)),
-            ClientPacketID::SetBlock => Ok(Box::new(SetBlock::deserialise(reader)?)),
-            ClientPacketID::Position => Ok(Box::new(Position::deserialise(reader)?)),
-            ClientPacketID::Message => Ok(Box::new(Message::deserialise(reader)?)),
+            ClientPacketID::PlayerIdent => Ok(Box::new(PlayerIdentPacket::deserialise(reader)?)),
+            ClientPacketID::SetBlock => Ok(Box::new(SetBlockPacket::deserialise(reader)?)),
+            ClientPacketID::Position => Ok(Box::new(PositionPacket::deserialise(reader)?)),
+            ClientPacketID::Message => Ok(Box::new(MessagePacket::deserialise(reader)?)),
         }
     }
 }
