@@ -1,10 +1,14 @@
 use std::{net::SocketAddr, sync::Arc};
 
+use anyhow::Result;
 use enum_primitive::FromPrimitive;
 use evenio::world::World;
-use tokio::{io::AsyncReadExt, net::{TcpListener, TcpStream, ToSocketAddrs}, sync::mpsc};
-use tracing::{info, warn};
-use anyhow:: Result;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
+    sync::mpsc,
+};
+use tracing::{debug, info, warn};
 
 use crate::networking::{c2s::PacketReader, s2c::PacketWriter, ClientPacketID};
 
@@ -37,7 +41,11 @@ pub async fn listen<A: ToSocketAddrs>(addr: A, tx: mpsc::Sender<ClientPacket>) {
     }
 }
 
-async fn handle_client(mut socket: TcpStream, addr: SocketAddr, tx: mpsc::Sender<ClientPacket>) -> Result<()> {
+async fn handle_client(
+    mut socket: TcpStream,
+    addr: SocketAddr,
+    tx: mpsc::Sender<ClientPacket>,
+) -> Result<()> {
     info!("Incoming connection from: {addr}");
 
     let (sender, mut receiver) = mpsc::channel(16);
@@ -51,8 +59,10 @@ async fn handle_client(mut socket: TcpStream, addr: SocketAddr, tx: mpsc::Sender
         tokio::select! {
             packet = receiver.recv() => {
                 if let Some(packet) = packet {
+                    debug!("Sending packet: {:?}", packet);
                     let mut writer = PacketWriter::new_with_capacity(1);
                     writer.write_packet_boxed(packet)?;
+                    socket.write_all(&writer.into_inner()).await?;
                 } else {
                     break;
                 }
@@ -66,14 +76,14 @@ async fn handle_client(mut socket: TcpStream, addr: SocketAddr, tx: mpsc::Sender
                             continue;
                         },
                     };
-                    
+
                     let mut packet_buf = vec![0u8; packet_id.size()];
                     socket.read_exact(&mut packet_buf).await?;
-            
+
                     let packet = packet_id
                         .deserialise(&mut PacketReader::new(packet_buf))
                         .unwrap();
-            
+
                     tx.send(ClientPacket { packet, client_info: info.clone() }).await?;
                 } else {
                     break;

@@ -44,6 +44,10 @@ impl PacketWriter {
         Ok(())
     }
 
+    pub fn into_inner(self) -> Vec<u8> {
+        self.buffer.into_inner()
+    }
+
     pub fn write_byte(&mut self, b: Byte) -> Result<()> {
         Ok(self.buffer.write_u8(b)?)
     }
@@ -83,14 +87,14 @@ pub trait S2CPacket: Send + Sync + Debug {
 }
 
 #[derive(Debug)]
-pub struct PlayerIdent {
-    protocol_version: Byte,
-    server_name: PacketString,
-    server_motd: PacketString,
-    user_type: Byte,
+pub struct ServerIdent {
+    pub protocol_version: Byte,
+    pub server_name: PacketString,
+    pub server_motd: PacketString,
+    pub user_type: Byte,
 }
 
-impl S2CPacket for PlayerIdent {
+impl S2CPacket for ServerIdent {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_byte(self.protocol_version)?;
         writer.write_packet_string(&self.server_name)?;

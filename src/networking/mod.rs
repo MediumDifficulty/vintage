@@ -6,8 +6,8 @@ use std::str::FromStr;
 use self::c2s::{C2SPacket, MessagePacket, PacketReader, PositionPacket, SetBlockPacket};
 
 pub mod c2s;
-pub mod s2c;
 pub mod listener;
+pub mod s2c;
 
 pub type Byte = u8;
 pub type SByte = i8;
@@ -58,7 +58,7 @@ impl FromStr for PacketString {
     type Err = anyhow::Error;
 
     fn from_str(data: &str) -> Result<PacketString> {
-        Ok(PacketString(format!("{data: <32}").as_bytes().try_into()?))
+        Ok(PacketString(format!("{data: <64}").as_bytes().try_into()?))
     }
 }
 

@@ -82,11 +82,14 @@ impl C2SPacket for PlayerIdentPacket {
         }
 
         let player = world.spawn();
-        
-        world.insert(player, ClientConnection {
-            sender: client_info.packet_sender.clone(),
-            addr: client_info.addr,
-        });
+
+        world.insert(
+            player,
+            ClientConnection {
+                sender: client_info.packet_sender.clone(),
+                addr: client_info.addr,
+            },
+        );
 
         world.send(PlayerJoinEvent(player));
     }
