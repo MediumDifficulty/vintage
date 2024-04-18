@@ -1,12 +1,10 @@
-use evenio::event::Event;
+use evenio::{entity::EntityId, event::Event};
 use glam::{IVec3, Vec3};
 
 use crate::world::{Block, PlayerId};
 
 #[derive(Debug, Event)]
-pub struct PlayerJoinEvent {
-    pub username: String,
-}
+pub struct PlayerJoinEvent(pub EntityId);
 
 #[derive(Debug, Event)]
 pub struct SetBlockEvent {

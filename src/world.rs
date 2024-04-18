@@ -1,8 +1,10 @@
+use std::net::SocketAddr;
+
 use evenio::component::Component;
 use glam::Vec3;
 use tokio::sync::mpsc;
 
-use crate::packet::s2c::S2CPacket;
+use crate::networking::s2c::S2CPacket;
 
 enum_from_primitive! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,21 +65,22 @@ pub enum Block {
 pub type PlayerId = i8;
 
 #[derive(Component)]
-struct Player {
+pub struct Player {
     name: String,
     id: PlayerId,
 }
 
-#[derive(Component)]
-struct ClientConnection {
-    sender: mpsc::Sender<Box<dyn S2CPacket>>,
+#[derive(Component, Debug)]
+pub struct ClientConnection {
+    pub sender: mpsc::Sender<Box<dyn S2CPacket>>,
+    pub addr: SocketAddr,
 }
 
 #[derive(Component)]
-struct Position(Vec3);
+pub struct Position(Vec3);
 
 #[derive(Component)]
-struct Rotation {
+pub struct Rotation {
     pitch: f32,
     yaw: f32,
 }

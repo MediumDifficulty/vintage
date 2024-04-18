@@ -8,9 +8,9 @@ use byteorder::{BigEndian, ReadBytesExt};
 use evenio::world::World;
 use tracing::warn;
 
-use crate::event::PlayerJoinEvent;
+use crate::{event::PlayerJoinEvent, world::ClientConnection};
 
-use super::{Byte, FByte, FShort, PacketString, SByte, Short};
+use super::{listener::ClientInfo, Byte, FByte, FShort, PacketString, SByte, Short};
 
 pub struct PacketReader {
     buffer: Cursor<Vec<u8>>,
@@ -61,7 +61,7 @@ impl PacketReader {
 }
 
 pub trait C2SPacket: Send + Sync + Debug {
-    fn exec(&self, world: &mut World);
+    fn exec(&self, world: &mut World, client_info: &ClientInfo);
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
     where
         Self: Sized;
@@ -76,14 +76,19 @@ pub struct PlayerIdentPacket {
 }
 
 impl C2SPacket for PlayerIdentPacket {
-    fn exec(&self, world: &mut World) {
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
         if self.protocol_version < 7 {
             warn!("Client's protocol version in less than 7")
         }
 
-        world.send(PlayerJoinEvent {
-            username: self.username.to_string(),
-        })
+        let player = world.spawn();
+        
+        world.insert(player, ClientConnection {
+            sender: client_info.packet_sender.clone(),
+            addr: client_info.addr,
+        });
+
+        world.send(PlayerJoinEvent(player));
     }
 
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
@@ -117,7 +122,7 @@ pub struct SetBlockPacket {
 }
 
 impl C2SPacket for SetBlockPacket {
-    fn exec(&self, world: &mut World) {
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
         todo!()
     }
 
@@ -153,7 +158,7 @@ pub struct PositionPacket {
 }
 
 impl C2SPacket for PositionPacket {
-    fn exec(&self, world: &mut World) {
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
         todo!()
     }
 
@@ -187,7 +192,7 @@ pub struct MessagePacket {
 }
 
 impl C2SPacket for MessagePacket {
-    fn exec(&self, world: &mut World) {
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
         todo!()
     }
 
