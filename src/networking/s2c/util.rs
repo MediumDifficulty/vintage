@@ -5,15 +5,15 @@ use tokio::sync::mpsc;
 use crate::networking::Short;
 use crate::world::BlockWorld;
 
-use super::LevelDataChunk;
-use super::LevelFinalise;
-use super::LevelInit;
+use super::LevelDataChunkPacket;
+use super::LevelFinalisePacket;
+use super::LevelInitPacket;
 use super::S2CPacket;
 
 const CHUNK_SIZE: usize = 1024;
 
 pub fn send_world(world: &BlockWorld, sender: &mpsc::Sender<Box<dyn S2CPacket>>) -> Result<()> {
-    sender.blocking_send(Box::new(LevelInit {}))?;
+    sender.blocking_send(Box::new(LevelInitPacket {}))?;
 
     let serialised = world.serialise()?;
 
@@ -23,14 +23,14 @@ pub fn send_world(world: &BlockWorld, sender: &mpsc::Sender<Box<dyn S2CPacket>>)
         let chunk_data = chunk_data.try_into().unwrap();
         let percent_complete = ((i * CHUNK_SIZE * 100) / serialised.len()) as u8;
 
-        sender.blocking_send(Box::new(LevelDataChunk {
+        sender.blocking_send(Box::new(LevelDataChunkPacket {
             chunk_length: chunk.len() as Short,
             chunk_data,
             percent_complete,
         }))?;
     }
 
-    sender.blocking_send(Box::new(LevelFinalise {
+    sender.blocking_send(Box::new(LevelFinalisePacket {
         x_size: world.dims().x as Short,
         y_size: world.dims().y as Short,
         z_size: world.dims().z as Short,

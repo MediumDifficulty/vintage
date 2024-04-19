@@ -40,7 +40,7 @@ impl PacketWriter {
         Ok(())
     }
 
-    pub fn write_packet_boxed(&mut self, packet: Box<dyn S2CPacket>) -> Result<()> {
+    pub fn write_packet_boxed(&mut self, packet: &Box<dyn S2CPacket>) -> Result<()> {
         self.write_byte(packet.id())?;
         packet.serialise(self)?;
         Ok(())
@@ -89,14 +89,14 @@ pub trait S2CPacket: Send + Sync + Debug {
 }
 
 #[derive(Debug)]
-pub struct ServerIdent {
+pub struct ServerIdentPacket {
     pub protocol_version: Byte,
     pub server_name: PacketString,
     pub server_motd: PacketString,
     pub user_type: Byte,
 }
 
-impl S2CPacket for ServerIdent {
+impl S2CPacket for ServerIdentPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_byte(self.protocol_version)?;
         writer.write_packet_string(&self.server_name)?;
@@ -110,9 +110,9 @@ impl S2CPacket for ServerIdent {
 }
 
 #[derive(Debug)]
-pub struct Ping;
+pub struct Pingpacket;
 
-impl S2CPacket for Ping {
+impl S2CPacket for Pingpacket {
     fn serialise(&self, _writer: &mut PacketWriter) -> Result<()> {
         Ok(())
     }
@@ -123,9 +123,9 @@ impl S2CPacket for Ping {
 }
 
 #[derive(Debug)]
-pub struct LevelInit;
+pub struct LevelInitPacket;
 
-impl S2CPacket for LevelInit {
+impl S2CPacket for LevelInitPacket {
     fn serialise(&self, _writer: &mut PacketWriter) -> Result<()> {
         Ok(())
     }
@@ -136,13 +136,13 @@ impl S2CPacket for LevelInit {
 }
 
 #[derive(Debug)]
-pub struct LevelDataChunk {
-    chunk_length: Short,
-    chunk_data: ByteArray,
-    percent_complete: Byte,
+pub struct LevelDataChunkPacket {
+    pub chunk_length: Short,
+    pub chunk_data: ByteArray,
+    pub percent_complete: Byte,
 }
 
-impl S2CPacket for LevelDataChunk {
+impl S2CPacket for LevelDataChunkPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_short(self.chunk_length)?;
         writer.write_byte_array(&self.chunk_data)?;
@@ -155,13 +155,13 @@ impl S2CPacket for LevelDataChunk {
 }
 
 #[derive(Debug)]
-pub struct LevelFinalise {
-    x_size: Short,
-    y_size: Short,
-    z_size: Short,
+pub struct LevelFinalisePacket {
+    pub x_size: Short,
+    pub y_size: Short,
+    pub z_size: Short,
 }
 
-impl S2CPacket for LevelFinalise {
+impl S2CPacket for LevelFinalisePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_short(self.x_size)?;
         writer.write_short(self.y_size)?;
@@ -174,14 +174,14 @@ impl S2CPacket for LevelFinalise {
 }
 
 #[derive(Debug)]
-pub struct SetBlock {
-    x: Short,
-    y: Short,
-    z: Short,
-    block_type: Byte,
+pub struct SetBlockPacket {
+    pub x: Short,
+    pub y: Short,
+    pub z: Short,
+    pub block_type: Byte,
 }
 
-impl S2CPacket for SetBlock {
+impl S2CPacket for SetBlockPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_short(self.x)?;
         writer.write_short(self.y)?;
@@ -195,15 +195,17 @@ impl S2CPacket for SetBlock {
 }
 
 #[derive(Debug)]
-pub struct SpawnPlayer {
-    player_id: SByte,
-    player_name: PacketString,
-    x: FShort,
-    y: FShort,
-    z: FShort,
+pub struct SpawnPlayerPacket {
+    pub player_id: SByte,
+    pub player_name: PacketString,
+    pub x: FShort,
+    pub y: FShort,
+    pub z: FShort,
+    pub yaw: Byte,
+    pub pitch: Byte,
 }
 
-impl S2CPacket for SpawnPlayer {
+impl S2CPacket for SpawnPlayerPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
         writer.write_packet_string(&self.player_name)?;
@@ -218,16 +220,16 @@ impl S2CPacket for SpawnPlayer {
 }
 
 #[derive(Debug)]
-pub struct PlayerTeleport {
-    player_id: SByte,
-    x: FShort,
-    y: FShort,
-    z: FShort,
-    yaw: Byte,
-    pitch: Byte,
+pub struct PlayerTeleportPacket {
+    pub player_id: SByte,
+    pub x: FShort,
+    pub y: FShort,
+    pub z: FShort,
+    pub yaw: Byte,
+    pub pitch: Byte,
 }
 
-impl S2CPacket for PlayerTeleport {
+impl S2CPacket for PlayerTeleportPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
         writer.write_fshort(&self.x)?;
@@ -243,16 +245,16 @@ impl S2CPacket for PlayerTeleport {
 }
 
 #[derive(Debug)]
-pub struct PlayerPosOriUpdate {
-    player_id: SByte,
-    delta_x: FShort,
-    delta_y: FShort,
-    delta_z: FShort,
-    yaw: Byte,
-    pitch: Byte,
+pub struct PlayerPosOriUpdatePacket {
+    pub player_id: SByte,
+    pub delta_x: FShort,
+    pub delta_y: FShort,
+    pub delta_z: FShort,
+    pub yaw: Byte,
+    pub pitch: Byte,
 }
 
-impl S2CPacket for PlayerPosOriUpdate {
+impl S2CPacket for PlayerPosOriUpdatePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
         writer.write_fshort(&self.delta_x)?;
@@ -268,14 +270,14 @@ impl S2CPacket for PlayerPosOriUpdate {
 }
 
 #[derive(Debug)]
-pub struct PlayerPosUpdate {
-    player_id: SByte,
-    delta_x: FShort,
-    delta_y: FShort,
-    delta_z: FShort,
+pub struct PlayerPosUpdatePacket {
+    pub player_id: SByte,
+    pub delta_x: FShort,
+    pub delta_y: FShort,
+    pub delta_z: FShort,
 }
 
-impl S2CPacket for PlayerPosUpdate {
+impl S2CPacket for PlayerPosUpdatePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
         writer.write_fshort(&self.delta_x)?;
@@ -289,13 +291,13 @@ impl S2CPacket for PlayerPosUpdate {
 }
 
 #[derive(Debug)]
-pub struct PlayerOriUpdate {
-    player_id: SByte,
-    yaw: Byte,
-    pitch: Byte,
+pub struct PlayerOriUpdatePacket {
+    pub player_id: SByte,
+    pub yaw: Byte,
+    pub pitch: Byte,
 }
 
-impl S2CPacket for PlayerOriUpdate {
+impl S2CPacket for PlayerOriUpdatePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
         writer.write_byte(self.yaw)?;
@@ -308,11 +310,11 @@ impl S2CPacket for PlayerOriUpdate {
 }
 
 #[derive(Debug)]
-pub struct DespawnPlayer {
-    player_id: SByte,
+pub struct DespawnPlayerPacket {
+    pub player_id: SByte,
 }
 
-impl S2CPacket for DespawnPlayer {
+impl S2CPacket for DespawnPlayerPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)
     }
@@ -323,12 +325,12 @@ impl S2CPacket for DespawnPlayer {
 }
 
 #[derive(Debug)]
-pub struct Message {
-    player_id: SByte,
-    message: PacketString,
+pub struct MessagePacket {
+    pub player_id: SByte,
+    pub message: PacketString,
 }
 
-impl S2CPacket for Message {
+impl S2CPacket for MessagePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
         writer.write_packet_string(&self.message)
@@ -340,11 +342,11 @@ impl S2CPacket for Message {
 }
 
 #[derive(Debug)]
-pub struct DisconnectPlayer {
-    disconnect_reason: PacketString,
+pub struct DisconnectPlayerPacket {
+    pub disconnect_reason: PacketString,
 }
 
-impl S2CPacket for DisconnectPlayer {
+impl S2CPacket for DisconnectPlayerPacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_packet_string(&self.disconnect_reason)
     }
@@ -355,11 +357,11 @@ impl S2CPacket for DisconnectPlayer {
 }
 
 #[derive(Debug)]
-pub struct UpdateUserType {
-    user_type: Byte,
+pub struct UpdateUserTypePacket {
+    pub user_type: Byte,
 }
 
-impl S2CPacket for UpdateUserType {
+impl S2CPacket for UpdateUserTypePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_byte(self.user_type)
     }

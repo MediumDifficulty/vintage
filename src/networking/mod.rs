@@ -8,6 +8,7 @@ use self::c2s::{C2SPacket, MessagePacket, PacketReader, PositionPacket, SetBlock
 pub mod c2s;
 pub mod listener;
 pub mod s2c;
+pub mod util;
 
 pub type Byte = u8;
 pub type SByte = i8;
@@ -95,7 +96,7 @@ impl ClientPacketID {
             ClientPacketID::PlayerIdent => 1 + 2 * PacketString::LENGTH + 1,
             ClientPacketID::SetBlock => 3 * 2 + 2,
             ClientPacketID::Position => 1 + 3 * 2 + 2,
-            ClientPacketID::Message => 1 + 1024,
+            ClientPacketID::Message => 1 + PacketString::LENGTH,
         }
     }
 

@@ -1,12 +1,16 @@
-use std::{io::{Read, Write}, net::SocketAddr};
+use std::{
+    io::{Read, Write},
+    net::SocketAddr,
+};
 
+use anyhow::Result;
 use byteorder::{BigEndian, WriteBytesExt};
 use enum_primitive::FromPrimitive;
 use evenio::component::Component;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use glam::{UVec3, Vec3};
 use tokio::sync::mpsc;
-use anyhow::Result;
+use tracing::debug;
 
 use crate::networking::s2c::S2CPacket;
 
@@ -70,8 +74,8 @@ pub type PlayerId = i8;
 
 #[derive(Component)]
 pub struct Player {
-    name: String,
-    id: PlayerId,
+    pub name: String,
+    pub id: PlayerId,
 }
 
 #[derive(Component, Debug)]
@@ -81,12 +85,12 @@ pub struct ClientConnection {
 }
 
 #[derive(Component)]
-pub struct Position(Vec3);
+pub struct Position(pub Vec3);
 
 #[derive(Component)]
 pub struct Rotation {
-    pitch: f32,
-    yaw: f32,
+    pub pitch: f32,
+    pub yaw: f32,
 }
 
 #[derive(Component)]
@@ -99,7 +103,10 @@ impl BlockWorld {
     pub fn new<F: FnOnce(UVec3, &mut Self)>(dimensions: UVec3, generator: F) -> Self {
         let mut world = Self {
             dimensions,
-            blocks: vec![Block::Air; dimensions.x as usize * dimensions.y as usize * dimensions.z as usize],
+            blocks: vec![
+                Block::Air;
+                dimensions.x as usize * dimensions.y as usize * dimensions.z as usize
+            ],
         };
 
         generator(dimensions, &mut world);
@@ -112,6 +119,7 @@ impl BlockWorld {
     }
 
     pub fn set_block(&mut self, pos: UVec3, block: Block) {
+        debug!("Setting block at: {pos:?}");
         let index = self.pos_to_index(pos);
         self.blocks[index] = block;
     }
@@ -144,7 +152,9 @@ impl BlockWorld {
 
     pub fn deserialise(data: &[u8], dimensions: UVec3) -> Result<Self> {
         let mut data = GzDecoder::new(data);
-        let mut buffer = Vec::with_capacity(dimensions.x as usize * dimensions.y as usize * dimensions.z as usize);
+        let mut buffer = Vec::with_capacity(
+            dimensions.x as usize * dimensions.y as usize * dimensions.z as usize,
+        );
         data.read_to_end(&mut buffer)?;
 
         let blocks = buffer
@@ -152,13 +162,38 @@ impl BlockWorld {
             .map(|&block| Block::from_u8(block).unwrap())
             .collect::<Vec<_>>();
 
-        Ok(Self {
-            dimensions,
-            blocks,
-        })
+        Ok(Self { dimensions, blocks })
     }
 
     pub fn dims(&self) -> UVec3 {
         self.dimensions
+    }
+}
+
+#[derive(Component)]
+pub struct PlayerIdAllocator {
+    occupation: Vec<bool>,
+}
+
+impl PlayerIdAllocator {
+    pub fn new_empty() -> Self {
+        PlayerIdAllocator {
+            occupation: vec![false; 127],
+        }
+    }
+
+    pub fn alloc(&mut self) -> PlayerId {
+        for (id, occupied) in self.occupation.iter_mut().enumerate() {
+            if !*occupied {
+                *occupied = true;
+                return id as PlayerId;
+            }
+        }
+
+        panic!("No more player ids available");
+    }
+
+    pub fn free(&mut self, id: PlayerId) {
+        self.occupation[id as usize] = false;
     }
 }

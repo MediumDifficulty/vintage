@@ -1,4 +1,6 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use enum_primitive::FromPrimitive;
+use glam::uvec3;
 use std::{
     fmt::Debug,
     io::{Cursor, Read},
@@ -6,9 +8,12 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt};
 use evenio::world::World;
-use tracing::warn;
+use tracing::{info, warn};
 
-use crate::{event::PlayerJoinEvent, world::ClientConnection};
+use crate::{
+    event::{PlayerJoinEvent, SetBlockEvent},
+    world::{self, ClientConnection},
+};
 
 use super::{listener::ClientInfo, Byte, FByte, FShort, PacketString, SByte, Short};
 
@@ -61,7 +66,7 @@ impl PacketReader {
 }
 
 pub trait C2SPacket: Send + Sync + Debug {
-    fn exec(&self, world: &mut World, client_info: &ClientInfo);
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()>;
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
     where
         Self: Sized;
@@ -76,7 +81,7 @@ pub struct PlayerIdentPacket {
 }
 
 impl C2SPacket for PlayerIdentPacket {
-    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
         if self.protocol_version < 7 {
             warn!("Client's protocol version in less than 7")
         }
@@ -91,7 +96,12 @@ impl C2SPacket for PlayerIdentPacket {
             },
         );
 
-        world.send(PlayerJoinEvent(player));
+        world.send(PlayerJoinEvent {
+            entity_id: player,
+            username: self.username.to_string(),
+        });
+
+        Ok(())
     }
 
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
@@ -125,8 +135,14 @@ pub struct SetBlockPacket {
 }
 
 impl C2SPacket for SetBlockPacket {
-    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
-        todo!()
+    fn exec(&self, world: &mut World, _client_info: &ClientInfo) -> Result<()> {
+        world.send(SetBlockEvent {
+            block: world::Block::from_u8(self.block_type).context("Invalid block id")?,
+            placed: self.mode == 1,
+            pos: uvec3(self.x as u32, self.y as u32, self.z as u32),
+        });
+
+        Ok(())
     }
 
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
@@ -161,8 +177,8 @@ pub struct PositionPacket {
 }
 
 impl C2SPacket for PositionPacket {
-    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
-        todo!()
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
+        Ok(())
     }
 
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
@@ -195,8 +211,10 @@ pub struct MessagePacket {
 }
 
 impl C2SPacket for MessagePacket {
-    fn exec(&self, world: &mut World, client_info: &ClientInfo) {
-        todo!()
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
+        info!("Message from {}: {}", self.player_id, self.message.to_string());
+
+        Ok(())
     }
 
     fn deserialise(reader: &mut PacketReader) -> Result<Self>
