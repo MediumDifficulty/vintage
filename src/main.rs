@@ -2,16 +2,17 @@ use std::{str::FromStr, thread};
 
 use anyhow::Result;
 use evenio::prelude::*;
+use glam::uvec3;
 use tokio::sync::mpsc;
 use tracing::{debug, info, Level};
 use vintage::{
     event::PlayerJoinEvent,
     networking::{
         listener::{self, ClientPacket},
-        s2c::ServerIdent,
+        s2c::{self, ServerIdent},
         PacketString,
     },
-    world::ClientConnection,
+    world::{self, BlockWorld, ClientConnection},
 };
 
 enum WorldEvent {
@@ -35,6 +36,27 @@ async fn main() -> Result<()> {
 
     world.add_handler(tick_handler);
     world.add_handler(player_join_handler);
+
+    let block_world = world.spawn();
+    world.insert(block_world, BlockWorld::new(uvec3(64, 32, 64), |dims, world| {
+        for x in 0..dims.x {
+            world.set_block(uvec3(x, 0, 0), world::Block::RedCloth);
+        }
+
+        for y in 0..dims.y {
+            world.set_block(uvec3(0, y, 0), world::Block::GreenCloth);
+        }
+
+        for z in 0..dims.z {
+            world.set_block(uvec3(0, 0, z), world::Block::PurpleCloth);
+        }
+
+        for x in 0..dims.x {
+            for z in 0..dims.z {
+                world.set_block(uvec3(x, 15, z), world::Block::Glass);
+            }
+        }
+    }));
 
     let (tx, mut rx) = mpsc::channel(100);
 
@@ -75,7 +97,7 @@ fn tick_handler(_: Receiver<TickEvent>) {
     info!("Handling tick");
 }
 
-fn player_join_handler(e: Receiver<PlayerJoinEvent>, fetcher: Fetcher<&ClientConnection>) {
+fn player_join_handler(e: Receiver<PlayerJoinEvent>, fetcher: Fetcher<&ClientConnection>, Single(block_world): Single<&BlockWorld>) {
     debug!("Handling player join");
     let fetched = fetcher.get(e.event.0).unwrap();
     info!("Player addr: {}", fetched.addr);
@@ -89,4 +111,6 @@ fn player_join_handler(e: Receiver<PlayerJoinEvent>, fetcher: Fetcher<&ClientCon
             user_type: 0x64,
         }))
         .unwrap();
+    
+    s2c::util::send_world(block_world, &fetched.sender).unwrap();
 }

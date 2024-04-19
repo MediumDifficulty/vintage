@@ -1,3 +1,5 @@
+pub mod util;
+
 use std::{
     fmt::Debug,
     io::{Cursor, Write},

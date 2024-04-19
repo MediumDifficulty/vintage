@@ -72,7 +72,7 @@ async fn handle_client(
                     let packet_id = match ClientPacketID::from_u8(packet_id) {
                         Some(packet_id) => packet_id,
                         None => {
-                            warn!("Invalid packet_id");
+                            warn!("Invalid packet ID: {packet_id}");
                             continue;
                         },
                     };
