@@ -6,7 +6,9 @@ use glam::{uvec3, vec3, Vec3};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, Level};
 use vintage::{
-    event::{PlayerDisconnectEvent, PlayerJoinEvent, PlayerMoveEvent, SetBlockEvent},
+    event::{
+        PlayerDisconnectEvent, PlayerJoinEvent, PlayerMessageEvent, PlayerMoveEvent, SetBlockEvent,
+    },
     networking::{
         self,
         listener::{self, ClientMessage},
@@ -40,7 +42,7 @@ struct PlayerSpawnLocation {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_thread_names(true)
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::INFO)
         .init();
 
     info!("Starting");
@@ -54,6 +56,7 @@ async fn main() -> Result<()> {
     world.add_handler(player_disconnect_handler);
     world.add_handler(player_despawn_handler);
     world.add_handler(player_move_handler);
+    world.add_handler(player_message_handler);
 
     let player_id_allocator = world.spawn();
     world.insert(player_id_allocator, PlayerIdAllocator::new_empty());
@@ -150,7 +153,6 @@ fn player_join_handler(
     mut sender: Sender<(Insert<Player>, Insert<Position>, Insert<Rotation>)>,
     Single(spawn_location): Single<&PlayerSpawnLocation>,
 ) {
-    debug!("Handling player join");
     let player_id = player_id_allocator.alloc(e.event.entity_id);
     sender.insert(
         e.event.entity_id,
@@ -233,8 +235,6 @@ fn player_spawn_handler(
     clients: Fetcher<(&ClientConnection, With<&Player>)>,
     Single(spawn_location): Single<&PlayerSpawnLocation>,
 ) {
-    debug!("Handling player spawn");
-
     for (connection, _) in clients.iter() {
         connection
             .sender
@@ -256,8 +256,6 @@ fn player_disconnect_handler(
     clients: Fetcher<(EntityId, &ClientConnection, With<&Player>)>,
     mut sender: Sender<Despawn>,
 ) {
-    debug!("Handling player disconnect");
-
     for (id, connection, _) in clients.iter() {
         if connection.addr == e.event.0 {
             sender.despawn(id);
@@ -270,7 +268,6 @@ fn player_despawn_handler(
     Single(player_id_allocator): Single<&mut PlayerIdAllocator>,
     fetcher: Fetcher<(EntityId, &Player, &ClientConnection)>,
 ) {
-    debug!("Handling player despawn");
     let (_, player, _) = fetcher.get(e.event.0).unwrap();
 
     info!("Player {} left", player.name);
@@ -292,9 +289,8 @@ fn player_move_handler(
     e: Receiver<PlayerMoveEvent>,
     mut players: Fetcher<(&mut Position, &mut Rotation, &Player)>,
     connections: Fetcher<(EntityId, &ClientConnection)>,
-    Single(player_id_allocator): Single<&mut PlayerIdAllocator>
+    Single(player_id_allocator): Single<&mut PlayerIdAllocator>,
 ) {
-    debug!("Handling player move");
     let (original_position, original_rotation, _) = players.get_mut(e.event.entity_id).unwrap();
 
     for (id, connection) in connections.iter() {
@@ -305,9 +301,12 @@ fn player_move_handler(
                 *original_rotation,
                 e.event.rot,
                 3.,
-                player_id_allocator.get_player_id(e.event.entity_id).unwrap(),
+                player_id_allocator
+                    .get_player_id(e.event.entity_id)
+                    .unwrap(),
                 &connection.sender,
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 
@@ -335,6 +334,32 @@ fn set_block_handler(
             x: e.event.pos.x as Short,
             y: e.event.pos.y as Short,
             z: e.event.pos.z as Short,
+        })))
+        .unwrap();
+}
+
+fn player_message_handler(
+    e: Receiver<PlayerMessageEvent>,
+    Single(broadcaster): Single<&PacketBroadcaster>,
+    Single(player_id_allocator): Single<&mut PlayerIdAllocator>,
+    players: Fetcher<&Player>,
+) {
+    debug!("Handling player message");
+    let player_id = player_id_allocator
+        .get_player_id(e.event.entity_id)
+        .unwrap();
+    let player = players.get(e.event.entity_id).unwrap();
+
+    info!("Player {}: {}", player.name, e.event.message);
+
+    broadcaster
+        .0
+        .send(Arc::new(Box::new(s2c::MessagePacket {
+            message: PacketString::from_str(
+                format!("{}: {}", player.name, &e.event.message).as_str(),
+            )
+            .unwrap(),
+            player_id,
         })))
         .unwrap();
 }

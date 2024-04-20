@@ -102,7 +102,7 @@ pub fn send_player_move_packet(
 
         return Ok(());
     }
-    
+
     Ok(sender.blocking_send(Box::new(super::PlayerTeleportPacket {
         player_id,
         pitch: to_angle_byte(rot2.pitch),

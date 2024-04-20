@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, sync::{Arc, Mutex}};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
 use enum_primitive::FromPrimitive;

@@ -11,11 +11,13 @@ use evenio::world::World;
 use tracing::{info, warn};
 
 use crate::{
-    event::{PlayerJoinEvent, PlayerMoveEvent, SetBlockEvent},
+    event::{PlayerJoinEvent, PlayerMessageEvent, PlayerMoveEvent, SetBlockEvent},
     world::{self, ClientConnection, Rotation},
 };
 
-use super::{listener::ClientInfo, util::angle_to_f32, Byte, FByte, FShort, PacketString, SByte, Short};
+use super::{
+    listener::ClientInfo, util::angle_to_f32, Byte, FByte, FShort, PacketString, SByte, Short,
+};
 
 pub struct PacketReader {
     buffer: Cursor<Vec<u8>>,
@@ -87,7 +89,7 @@ impl C2SPacket for PlayerIdentPacket {
         }
 
         let player = world.spawn();
-        
+
         *client_info.player_id.lock().unwrap() = Some(player);
 
         world.insert(
@@ -225,11 +227,10 @@ pub struct MessagePacket {
 
 impl C2SPacket for MessagePacket {
     fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
-        info!(
-            "Message from {}: {}",
-            self.player_id,
-            self.message.to_string()
-        );
+        world.send(PlayerMessageEvent {
+            entity_id: (*client_info.player_id.lock().unwrap()).unwrap(),
+            message: self.message.to_string(),
+        });
 
         Ok(())
     }
