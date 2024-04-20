@@ -6,11 +6,16 @@ use glam::{uvec3, vec3, Vec3};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, Level};
 use vintage::{
-    event::{PlayerDisconnectEvent, PlayerJoinEvent, SetBlockEvent},
+    event::{PlayerDisconnectEvent, PlayerJoinEvent, PlayerMoveEvent, SetBlockEvent},
     networking::{
-        self, listener::{self, ClientMessage}, s2c::{self, PlayerTeleportPacket, S2CPacket, ServerIdentPacket}, FShort, PacketString, Short
+        self,
+        listener::{self, ClientMessage},
+        s2c::{self, PlayerTeleportPacket, S2CPacket, ServerIdentPacket},
+        FShort, PacketString, Short,
     },
-    world::{self, Block, BlockWorld, ClientConnection, Player, PlayerIdAllocator, Position, Rotation},
+    world::{
+        self, Block, BlockWorld, ClientConnection, Player, PlayerIdAllocator, Position, Rotation,
+    },
 };
 
 enum WorldEvent {
@@ -48,7 +53,7 @@ async fn main() -> Result<()> {
     world.add_handler(player_spawn_handler);
     world.add_handler(player_disconnect_handler);
     world.add_handler(player_despawn_handler);
-
+    world.add_handler(player_move_handler);
 
     let player_id_allocator = world.spawn();
     world.insert(player_id_allocator, PlayerIdAllocator::new_empty());
@@ -59,8 +64,8 @@ async fn main() -> Result<()> {
         PlayerSpawnLocation {
             position: vec3(16.0, 20.0, 16.0),
             pitch: 0.,
-            yaw: 0.
-        }
+            yaw: 0.,
+        },
     );
 
     let block_world = world.spawn();
@@ -107,18 +112,14 @@ async fn main() -> Result<()> {
                     WorldEvent::Tick => {
                         world.send(TickEvent {});
                     },
-                    WorldEvent::ClientMessage(message) => {
-                        match message {
-                            ClientMessage::Packet(packet) => {
-                                if let Err(e) = packet.exec(&mut world) {
-                                    error!("failed to execute packet handler: {e}")
-                                }
-                            },
-                            ClientMessage::Disconnect(addr) => {
-                                world.send(PlayerDisconnectEvent(addr))
+                    WorldEvent::ClientMessage(message) => match message {
+                        ClientMessage::Packet(packet) => {
+                            if let Err(e) = packet.exec(&mut world) {
+                                error!("failed to execute packet handler: {e}")
                             }
-                        }
-                    }
+                        },
+                        ClientMessage::Disconnect(addr) => world.send(PlayerDisconnectEvent(addr)),
+                    },
                 }
             }
         })
@@ -143,13 +144,14 @@ fn tick_handler(_: Receiver<TickEvent>) {
 fn player_join_handler(
     e: Receiver<PlayerJoinEvent>,
     connections: Fetcher<&ClientConnection>,
+    players: Fetcher<(&Position, &Rotation, &Player)>,
     Single(block_world): Single<&BlockWorld>,
     Single(player_id_allocator): Single<&mut PlayerIdAllocator>,
     mut sender: Sender<(Insert<Player>, Insert<Position>, Insert<Rotation>)>,
     Single(spawn_location): Single<&PlayerSpawnLocation>,
 ) {
     debug!("Handling player join");
-    let player_id = player_id_allocator.alloc();
+    let player_id = player_id_allocator.alloc(e.event.entity_id);
     sender.insert(
         e.event.entity_id,
         Player {
@@ -159,15 +161,18 @@ fn player_join_handler(
     );
 
     sender.insert(e.event.entity_id, Position(spawn_location.position));
-    sender.insert(e.event.entity_id, Rotation {
-        pitch: spawn_location.pitch,
-        yaw: spawn_location.yaw,
-    });
+    sender.insert(
+        e.event.entity_id,
+        Rotation {
+            pitch: spawn_location.pitch,
+            yaw: spawn_location.yaw,
+        },
+    );
 
-    let fetched = connections.get(e.event.entity_id).unwrap();
-    info!("Player addr: {}", fetched.addr);
+    let player = connections.get(e.event.entity_id).unwrap();
+    info!("Player addr: {}", player.addr);
 
-    fetched
+    player
         .sender
         .blocking_send(Box::new(ServerIdentPacket {
             protocol_version: 7,
@@ -177,9 +182,9 @@ fn player_join_handler(
         }))
         .unwrap();
 
-    s2c::util::send_world(block_world, &fetched.sender).unwrap();
-    
-    fetched
+    s2c::util::send_world(block_world, &player.sender).unwrap();
+
+    player
         .sender
         .blocking_send(Box::new(PlayerTeleportPacket {
             player_id: -1,
@@ -188,9 +193,10 @@ fn player_join_handler(
             x: FShort::from(spawn_location.position.x),
             y: FShort::from(spawn_location.position.y),
             z: FShort::from(spawn_location.position.z),
-        })).unwrap();
+        }))
+        .unwrap();
 
-    fetched
+    player
         .sender
         .blocking_send(Box::new(s2c::SpawnPlayerPacket {
             player_id: -1,
@@ -200,8 +206,25 @@ fn player_join_handler(
             z: FShort::from(spawn_location.position.z),
             yaw: networking::util::to_angle_byte(spawn_location.yaw),
             pitch: networking::util::to_angle_byte(spawn_location.pitch),
-        })).unwrap();
-    
+        }))
+        .unwrap();
+
+    // Populate world with other players
+    for (pos, rot, other_player) in players.iter() {
+        player
+            .sender
+            .blocking_send(Box::new(s2c::SpawnPlayerPacket {
+                x: FShort::from(pos.0.x),
+                y: FShort::from(pos.0.y),
+                z: FShort::from(pos.0.z),
+                pitch: networking::util::to_angle_byte(rot.pitch),
+                yaw: networking::util::to_angle_byte(rot.yaw),
+                player_id: other_player.id,
+                player_name: PacketString::from_str(&other_player.name).unwrap(),
+            }))
+            .unwrap();
+    }
+
     debug!("Finished handling")
 }
 
@@ -213,28 +236,31 @@ fn player_spawn_handler(
     debug!("Handling player spawn");
 
     for (connection, _) in clients.iter() {
-        connection.sender.blocking_send(Box::new(s2c::SpawnPlayerPacket {
-            player_id: e.event.component.id,
-            player_name: PacketString::from_str(&e.event.component.name).unwrap(),
-            x: FShort::from(spawn_location.position.x),
-            y: FShort::from(spawn_location.position.y),
-            z: FShort::from(spawn_location.position.z),
-            pitch: networking::util::to_angle_byte(spawn_location.pitch),
-            yaw: networking::util::to_angle_byte(spawn_location.yaw),
-        })).unwrap();
+        connection
+            .sender
+            .blocking_send(Box::new(s2c::SpawnPlayerPacket {
+                player_id: e.event.component.id,
+                player_name: PacketString::from_str(&e.event.component.name).unwrap(),
+                x: FShort::from(spawn_location.position.x),
+                y: FShort::from(spawn_location.position.y),
+                z: FShort::from(spawn_location.position.z),
+                pitch: networking::util::to_angle_byte(spawn_location.pitch),
+                yaw: networking::util::to_angle_byte(spawn_location.yaw),
+            }))
+            .unwrap();
     }
 }
 
 fn player_disconnect_handler(
     e: Receiver<PlayerDisconnectEvent>,
     clients: Fetcher<(EntityId, &ClientConnection, With<&Player>)>,
-    mut sender: Sender<Despawn>
+    mut sender: Sender<Despawn>,
 ) {
     debug!("Handling player disconnect");
 
     for (id, connection, _) in clients.iter() {
         if connection.addr == e.event.0 {
-            sender.despawn(id)            ;
+            sender.despawn(id);
         }
     }
 }
@@ -242,7 +268,7 @@ fn player_disconnect_handler(
 fn player_despawn_handler(
     e: Receiver<Despawn, With<&Player>>,
     Single(player_id_allocator): Single<&mut PlayerIdAllocator>,
-    fetcher: Fetcher<(EntityId, &Player, &ClientConnection)>
+    fetcher: Fetcher<(EntityId, &Player, &ClientConnection)>,
 ) {
     debug!("Handling player despawn");
     let (_, player, _) = fetcher.get(e.event.0).unwrap();
@@ -252,11 +278,41 @@ fn player_despawn_handler(
     player_id_allocator.free(player.id);
     for (id, _, connection) in fetcher.iter() {
         if id != e.event.0 {
-            connection.sender.blocking_send(Box::new(s2c::DespawnPlayerPacket {
-                player_id: player.id,
-            })).unwrap();
+            connection
+                .sender
+                .blocking_send(Box::new(s2c::DespawnPlayerPacket {
+                    player_id: player.id,
+                }))
+                .unwrap();
         }
     }
+}
+
+fn player_move_handler(
+    e: Receiver<PlayerMoveEvent>,
+    mut players: Fetcher<(&mut Position, &mut Rotation, &Player)>,
+    connections: Fetcher<(EntityId, &ClientConnection)>,
+    Single(player_id_allocator): Single<&mut PlayerIdAllocator>
+) {
+    debug!("Handling player move");
+    let (original_position, original_rotation, _) = players.get_mut(e.event.entity_id).unwrap();
+
+    for (id, connection) in connections.iter() {
+        if id != e.event.entity_id {
+            s2c::util::send_player_move_packet(
+                original_position.0,
+                e.event.pos,
+                *original_rotation,
+                e.event.rot,
+                3.,
+                player_id_allocator.get_player_id(e.event.entity_id).unwrap(),
+                &connection.sender,
+            ).unwrap();
+        }
+    }
+
+    original_position.0 = e.event.pos;
+    *original_rotation = e.event.rot;
 }
 
 fn set_block_handler(

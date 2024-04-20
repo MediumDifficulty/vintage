@@ -15,7 +15,7 @@ pub type SByte = i8;
 pub type Short = i16;
 pub type ByteArray = [u8; 1024];
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct FByte(pub i8);
 
 impl From<FByte> for f32 {
@@ -30,7 +30,7 @@ impl From<f32> for FByte {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct FShort(pub i16);
 
 impl From<FShort> for f32 {

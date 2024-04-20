@@ -1,12 +1,13 @@
 use std::{
     io::{Read, Write},
     net::SocketAddr,
+    ops::Sub,
 };
 
 use anyhow::Result;
 use byteorder::{BigEndian, WriteBytesExt};
 use enum_primitive::FromPrimitive;
-use evenio::component::Component;
+use evenio::{component::Component, entity::EntityId};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use glam::{UVec3, Vec3};
 use tokio::sync::mpsc;
@@ -87,10 +88,21 @@ pub struct ClientConnection {
 #[derive(Component)]
 pub struct Position(pub Vec3);
 
-#[derive(Component)]
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Rotation {
     pub pitch: f32,
     pub yaw: f32,
+}
+
+impl Sub for Rotation {
+    type Output = Rotation;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Rotation {
+            pitch: self.pitch - rhs.pitch,
+            yaw: self.yaw - rhs.yaw,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -172,20 +184,20 @@ impl BlockWorld {
 
 #[derive(Component)]
 pub struct PlayerIdAllocator {
-    occupation: Vec<bool>,
+    occupation: Vec<Option<EntityId>>,
 }
 
 impl PlayerIdAllocator {
     pub fn new_empty() -> Self {
         PlayerIdAllocator {
-            occupation: vec![false; 127],
+            occupation: vec![None; 127],
         }
     }
 
-    pub fn alloc(&mut self) -> PlayerId {
+    pub fn alloc(&mut self, entity_id: EntityId) -> PlayerId {
         for (id, occupied) in self.occupation.iter_mut().enumerate() {
-            if !*occupied {
-                *occupied = true;
+            if occupied.is_none() {
+                *occupied = Some(entity_id);
                 return id as PlayerId;
             }
         }
@@ -194,6 +206,22 @@ impl PlayerIdAllocator {
     }
 
     pub fn free(&mut self, id: PlayerId) {
-        self.occupation[id as usize] = false;
+        self.occupation[id as usize] = None;
+    }
+
+    pub fn get_entity_id(&self, id: PlayerId) -> Option<EntityId> {
+        self.occupation[id as usize]
+    }
+
+    pub fn get_player_id(&self, entity_id: EntityId) -> Option<PlayerId> {
+        for (id, occupied) in self.occupation.iter().enumerate() {
+            if let Some(occupation) = occupied {
+                if *occupation == entity_id {
+                    return Some(id as PlayerId);
+                }
+            }
+        }
+
+        None
     }
 }

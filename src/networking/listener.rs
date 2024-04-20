@@ -1,14 +1,14 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::{Arc, Mutex}};
 
 use anyhow::Result;
 use enum_primitive::FromPrimitive;
-use evenio::world::World;
+use evenio::{entity::EntityId, world::World};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream, ToSocketAddrs},
     sync::{broadcast, mpsc},
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{info, trace, warn};
 
 use crate::networking::{c2s::PacketReader, s2c::PacketWriter, ClientPacketID};
 
@@ -17,6 +17,7 @@ use super::{c2s::C2SPacket, s2c::S2CPacket};
 pub struct ClientInfo {
     pub packet_sender: mpsc::Sender<Box<dyn S2CPacket>>,
     pub addr: SocketAddr,
+    pub player_id: Mutex<Option<EntityId>>,
 }
 
 pub enum ClientMessage {
@@ -69,6 +70,7 @@ async fn handle_client(
     let info = Arc::new(ClientInfo {
         packet_sender: sender,
         addr,
+        player_id: Mutex::new(None),
     });
 
     loop {

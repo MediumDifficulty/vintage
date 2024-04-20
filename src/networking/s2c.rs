@@ -249,9 +249,9 @@ impl S2CPacket for PlayerTeleportPacket {
 #[derive(Debug)]
 pub struct PlayerPosOriUpdatePacket {
     pub player_id: SByte,
-    pub delta_x: FShort,
-    pub delta_y: FShort,
-    pub delta_z: FShort,
+    pub delta_x: FByte,
+    pub delta_y: FByte,
+    pub delta_z: FByte,
     pub yaw: Byte,
     pub pitch: Byte,
 }
@@ -259,9 +259,9 @@ pub struct PlayerPosOriUpdatePacket {
 impl S2CPacket for PlayerPosOriUpdatePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
-        writer.write_fshort(&self.delta_x)?;
-        writer.write_fshort(&self.delta_y)?;
-        writer.write_fshort(&self.delta_z)?;
+        writer.write_fbyte(&self.delta_x)?;
+        writer.write_fbyte(&self.delta_y)?;
+        writer.write_fbyte(&self.delta_z)?;
         writer.write_byte(self.yaw)?;
         writer.write_byte(self.pitch)
     }
@@ -274,17 +274,17 @@ impl S2CPacket for PlayerPosOriUpdatePacket {
 #[derive(Debug)]
 pub struct PlayerPosUpdatePacket {
     pub player_id: SByte,
-    pub delta_x: FShort,
-    pub delta_y: FShort,
-    pub delta_z: FShort,
+    pub delta_x: FByte,
+    pub delta_y: FByte,
+    pub delta_z: FByte,
 }
 
 impl S2CPacket for PlayerPosUpdatePacket {
     fn serialise(&self, writer: &mut PacketWriter) -> Result<()> {
         writer.write_sbyte(self.player_id)?;
-        writer.write_fshort(&self.delta_x)?;
-        writer.write_fshort(&self.delta_y)?;
-        writer.write_fshort(&self.delta_z)
+        writer.write_fbyte(&self.delta_x)?;
+        writer.write_fbyte(&self.delta_y)?;
+        writer.write_fbyte(&self.delta_z)
     }
 
     fn id(&self) -> Byte {

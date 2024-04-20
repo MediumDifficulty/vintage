@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use enum_primitive::FromPrimitive;
-use glam::uvec3;
+use glam::{uvec3, vec3};
 use std::{
     fmt::Debug,
     io::{Cursor, Read},
@@ -11,11 +11,11 @@ use evenio::world::World;
 use tracing::{info, warn};
 
 use crate::{
-    event::{PlayerJoinEvent, SetBlockEvent},
-    world::{self, ClientConnection},
+    event::{PlayerJoinEvent, PlayerMoveEvent, SetBlockEvent},
+    world::{self, ClientConnection, Rotation},
 };
 
-use super::{listener::ClientInfo, Byte, FByte, FShort, PacketString, SByte, Short};
+use super::{listener::ClientInfo, util::angle_to_f32, Byte, FByte, FShort, PacketString, SByte, Short};
 
 pub struct PacketReader {
     buffer: Cursor<Vec<u8>>,
@@ -87,6 +87,8 @@ impl C2SPacket for PlayerIdentPacket {
         }
 
         let player = world.spawn();
+        
+        *client_info.player_id.lock().unwrap() = Some(player);
 
         world.insert(
             player,
@@ -178,6 +180,17 @@ pub struct PositionPacket {
 
 impl C2SPacket for PositionPacket {
     fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
+        let entity_id = client_info.player_id.lock().unwrap().clone();
+
+        world.send(PlayerMoveEvent {
+            pos: vec3(self.x.into(), self.y.into(), self.z.into()),
+            rot: Rotation {
+                pitch: angle_to_f32(self.pitch),
+                yaw: angle_to_f32(self.yaw),
+            },
+            entity_id: entity_id.unwrap(),
+        });
+
         Ok(())
     }
 
@@ -212,7 +225,11 @@ pub struct MessagePacket {
 
 impl C2SPacket for MessagePacket {
     fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
-        info!("Message from {}: {}", self.player_id, self.message.to_string());
+        info!(
+            "Message from {}: {}",
+            self.player_id,
+            self.message.to_string()
+        );
 
         Ok(())
     }

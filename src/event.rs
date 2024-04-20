@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use evenio::{entity::EntityId, event::Event};
 use glam::{UVec3, Vec3};
 
-use crate::world::{Block, PlayerId};
+use crate::world::{Block, Rotation};
 
 #[derive(Debug, Event)]
 pub struct PlayerJoinEvent {
@@ -20,13 +20,14 @@ pub struct SetBlockEvent {
 
 #[derive(Debug, Event)]
 pub struct PlayerMoveEvent {
-    pub player_id: PlayerId,
+    pub entity_id: EntityId,
     pub pos: Vec3,
+    pub rot: Rotation,
 }
 
 #[derive(Debug, Event)]
 pub struct PlayerMessageEvent {
-    pub player_id: PlayerId,
+    pub entity_id: EntityId,
     pub message: String,
 }
 
