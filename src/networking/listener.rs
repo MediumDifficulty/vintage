@@ -8,7 +8,7 @@ use tokio::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
     sync::{broadcast, mpsc},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::networking::{c2s::PacketReader, s2c::PacketWriter, ClientPacketID};
 
@@ -17,6 +17,11 @@ use super::{c2s::C2SPacket, s2c::S2CPacket};
 pub struct ClientInfo {
     pub packet_sender: mpsc::Sender<Box<dyn S2CPacket>>,
     pub addr: SocketAddr,
+}
+
+pub enum ClientMessage {
+    Packet(ClientPacket),
+    Disconnect(SocketAddr),
 }
 
 pub struct ClientPacket {
@@ -32,7 +37,7 @@ impl ClientPacket {
 
 pub async fn listen<A: ToSocketAddrs>(
     addr: A,
-    tx: mpsc::Sender<ClientPacket>,
+    tx: mpsc::Sender<ClientMessage>,
     broadcaster: Arc<broadcast::Sender<Arc<Box<dyn S2CPacket>>>>,
 ) {
     let listener = TcpListener::bind(addr).await.unwrap();
@@ -54,7 +59,7 @@ pub async fn listen<A: ToSocketAddrs>(
 async fn handle_client(
     mut socket: TcpStream,
     addr: SocketAddr,
-    tx: mpsc::Sender<ClientPacket>,
+    tx: mpsc::Sender<ClientMessage>,
     mut broadcaster: broadcast::Receiver<Arc<Box<dyn S2CPacket>>>,
 ) -> Result<()> {
     info!("Incoming connection from: {addr}");
@@ -92,8 +97,6 @@ async fn handle_client(
                         },
                     };
 
-                    debug!("Received packet ID: {packet_id:?}");
-
                     let mut packet_buf = vec![0u8; packet_id.size()];
                     socket.read_exact(&mut packet_buf).await?;
 
@@ -101,9 +104,13 @@ async fn handle_client(
                         .deserialise(&mut PacketReader::new(packet_buf))
                         .unwrap();
 
-                    debug!("Received packet: {packet:?}");
 
-                    tx.send(ClientPacket { packet, client_info: info.clone() }).await?;
+                    // TODO: use env variable to make this if configurable
+                    if packet_id != ClientPacketID::Position {
+                        trace!("Received packet: {packet:?}");
+                    }
+
+                    tx.send(ClientMessage::Packet(ClientPacket { packet, client_info: info.clone() })).await?;
                 } else {
                     break;
                 }
@@ -112,14 +119,14 @@ async fn handle_client(
     }
 
     info!("Client disconnected");
-    // TODO: Despawn player entity here so server doesn't crash later
+    tx.send(ClientMessage::Disconnect(addr)).await?;
 
     Ok(())
 }
 
 // FIXME: Remove &Box
 async fn write_packet(packet: &Box<dyn S2CPacket>, socket: &mut TcpStream) -> Result<()> {
-    debug!("Sending packet: {:?}", packet);
+    trace!("Sending packet: {:?}", packet);
     let mut writer = PacketWriter::new_with_capacity(1);
     writer.write_packet_boxed(packet)?;
     socket.write_all(&writer.into_inner()).await?;

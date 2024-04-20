@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use evenio::{entity::EntityId, event::Event};
 use glam::{UVec3, Vec3};
 
@@ -27,3 +29,6 @@ pub struct PlayerMessageEvent {
     pub player_id: PlayerId,
     pub message: String,
 }
+
+#[derive(Debug, Event)]
+pub struct PlayerDisconnectEvent(pub SocketAddr);

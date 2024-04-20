@@ -6,16 +6,16 @@ use glam::{uvec3, vec3, Vec3};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, Level};
 use vintage::{
-    event::{PlayerJoinEvent, SetBlockEvent},
+    event::{PlayerDisconnectEvent, PlayerJoinEvent, SetBlockEvent},
     networking::{
-        self, listener::{self, ClientPacket}, s2c::{self, PlayerTeleportPacket, S2CPacket, ServerIdentPacket}, FShort, PacketString, Short
+        self, listener::{self, ClientMessage}, s2c::{self, PlayerTeleportPacket, S2CPacket, ServerIdentPacket}, FShort, PacketString, Short
     },
     world::{self, Block, BlockWorld, ClientConnection, Player, PlayerIdAllocator, Position, Rotation},
 };
 
 enum WorldEvent {
     Tick,
-    Packet(ClientPacket),
+    ClientMessage(ClientMessage),
 }
 
 #[derive(Event)]
@@ -46,6 +46,9 @@ async fn main() -> Result<()> {
     world.add_handler(player_join_handler);
     world.add_handler(set_block_handler);
     world.add_handler(player_spawn_handler);
+    world.add_handler(player_disconnect_handler);
+    world.add_handler(player_despawn_handler);
+
 
     let player_id_allocator = world.spawn();
     world.insert(player_id_allocator, PlayerIdAllocator::new_empty());
@@ -104,11 +107,18 @@ async fn main() -> Result<()> {
                     WorldEvent::Tick => {
                         world.send(TickEvent {});
                     },
-                    WorldEvent::Packet(packet) => {
-                        if let Err(e) = packet.exec(&mut world) {
-                            error!("failed to execute packet handler: {e}")
+                    WorldEvent::ClientMessage(message) => {
+                        match message {
+                            ClientMessage::Packet(packet) => {
+                                if let Err(e) = packet.exec(&mut world) {
+                                    error!("failed to execute packet handler: {e}")
+                                }
+                            },
+                            ClientMessage::Disconnect(addr) => {
+                                world.send(PlayerDisconnectEvent(addr))
+                            }
                         }
-                    },
+                    }
                 }
             }
         })
@@ -117,7 +127,7 @@ async fn main() -> Result<()> {
     loop {
         tokio::select! {
             Some(packet) = rx.recv() => {
-                world_tx.send(WorldEvent::Packet(packet)).await?;
+                world_tx.send(WorldEvent::ClientMessage(packet)).await?;
             }
             _ = interval.tick() => {
                 world_tx.send(WorldEvent::Tick).await?;
@@ -212,6 +222,40 @@ fn player_spawn_handler(
             pitch: networking::util::to_angle_byte(spawn_location.pitch),
             yaw: networking::util::to_angle_byte(spawn_location.yaw),
         })).unwrap();
+    }
+}
+
+fn player_disconnect_handler(
+    e: Receiver<PlayerDisconnectEvent>,
+    clients: Fetcher<(EntityId, &ClientConnection, With<&Player>)>,
+    mut sender: Sender<Despawn>
+) {
+    debug!("Handling player disconnect");
+
+    for (id, connection, _) in clients.iter() {
+        if connection.addr == e.event.0 {
+            sender.despawn(id)            ;
+        }
+    }
+}
+
+fn player_despawn_handler(
+    e: Receiver<Despawn, With<&Player>>,
+    Single(player_id_allocator): Single<&mut PlayerIdAllocator>,
+    fetcher: Fetcher<(EntityId, &Player, &ClientConnection)>
+) {
+    debug!("Handling player despawn");
+    let (_, player, _) = fetcher.get(e.event.0).unwrap();
+
+    info!("Player {} left", player.name);
+
+    player_id_allocator.free(player.id);
+    for (id, _, connection) in fetcher.iter() {
+        if id != e.event.0 {
+            connection.sender.blocking_send(Box::new(s2c::DespawnPlayerPacket {
+                player_id: player.id,
+            })).unwrap();
+        }
     }
 }
 

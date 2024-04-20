@@ -110,9 +110,9 @@ impl S2CPacket for ServerIdentPacket {
 }
 
 #[derive(Debug)]
-pub struct Pingpacket;
+pub struct PingPacket;
 
-impl S2CPacket for Pingpacket {
+impl S2CPacket for PingPacket {
     fn serialise(&self, _writer: &mut PacketWriter) -> Result<()> {
         Ok(())
     }
@@ -211,7 +211,9 @@ impl S2CPacket for SpawnPlayerPacket {
         writer.write_packet_string(&self.player_name)?;
         writer.write_fshort(&self.x)?;
         writer.write_fshort(&self.y)?;
-        writer.write_fshort(&self.z)
+        writer.write_fshort(&self.z)?;
+        writer.write_byte(self.yaw)?;
+        writer.write_byte(self.pitch)
     }
 
     fn id(&self) -> Byte {

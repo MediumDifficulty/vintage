@@ -81,7 +81,7 @@ impl Debug for PacketString {
 }
 
 enum_from_primitive! {
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ClientPacketID {
     PlayerIdent = 0x00,
     SetBlock    = 0x05,
