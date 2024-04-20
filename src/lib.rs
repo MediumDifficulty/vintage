@@ -4,3 +4,4 @@ extern crate enum_primitive;
 pub mod event;
 pub mod networking;
 pub mod world;
+pub mod default;
