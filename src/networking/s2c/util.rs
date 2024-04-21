@@ -65,8 +65,6 @@ pub fn send_player_move_packet(
     let rotation_changed = rot1 != rot2;
     let position_changed = pos1 != pos2;
 
-    debug!("distance: {delta_distance} threshold: {teleport_threshold}");
-
     if delta_distance < teleport_threshold {
         let delta_pos = pos2 - pos1;
 

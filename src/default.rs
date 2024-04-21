@@ -4,11 +4,24 @@ use evenio::prelude::*;
 use tokio::sync::broadcast;
 use tracing::{debug, info};
 
-use crate::{event::{PlayerDisconnectEvent, PlayerJoinEvent, PlayerMessageEvent, PlayerMoveEvent, SetBlockEvent}, networking::{self, s2c::{self, S2CPacket}, FShort, PacketString, Short}, world::{Block, BlockWorld, ClientConnection, Player, PlayerIdAllocator, Position, Rotation}};
+use crate::{
+    event::{
+        PlayerDisconnectEvent, PlayerJoinEvent, PlayerMessageEvent, PlayerMoveEvent, SetBlockEvent,
+    },
+    networking::{
+        self,
+        s2c::{self, S2CPacket},
+        FShort, PacketString, Short,
+    },
+    world::{Block, BlockWorld, ClientConnection, Player, PlayerIdAllocator, Position, Rotation},
+};
 
 use self::config::PlayerSpawnLocation;
 
-pub fn add_default_handlers(world: &mut World, broadcaster: Arc<broadcast::Sender<Arc<Box<dyn S2CPacket>>>>) {
+pub fn add_default_handlers(
+    world: &mut World,
+    broadcaster: Arc<broadcast::Sender<Arc<Box<dyn S2CPacket>>>>,
+) {
     info!("Initialising default server configuration...");
 
     world.add_handler(player_join_handler);
@@ -19,7 +32,6 @@ pub fn add_default_handlers(world: &mut World, broadcaster: Arc<broadcast::Sende
     world.add_handler(player_move_handler);
     world.add_handler(player_message_handler);
 
-    
     let player_id_allocator = world.spawn();
     world.insert(player_id_allocator, PlayerIdAllocator::new_empty());
 
@@ -30,7 +42,7 @@ pub fn add_default_handlers(world: &mut World, broadcaster: Arc<broadcast::Sende
 pub mod config {
     use evenio::prelude::*;
     use glam::Vec3;
-    
+
     #[derive(Component)]
     pub struct PlayerSpawnLocation {
         pub position: Vec3,
@@ -41,7 +53,6 @@ pub mod config {
 
 #[derive(Component)]
 struct PacketBroadcaster(Arc<broadcast::Sender<Arc<Box<dyn S2CPacket>>>>);
-
 
 fn player_join_handler(
     e: Receiver<PlayerJoinEvent>,
@@ -217,17 +228,17 @@ fn set_block_handler(
     Single(broadcaster): Single<&PacketBroadcaster>,
 ) {
     let block = if e.event.placed {
-        e.event.block as u8
+        e.event.block
     } else {
-        Block::Air as u8
+        Block::Air
     };
 
-    block_world.set_block(e.event.pos, e.event.block);
+    block_world.set_block(e.event.pos, block);
 
     broadcaster
         .0
         .send(Arc::new(Box::new(s2c::SetBlockPacket {
-            block_type: block,
+            block_type: block as u8,
             x: e.event.pos.x as Short,
             y: e.event.pos.y as Short,
             z: e.event.pos.z as Short,

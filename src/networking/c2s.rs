@@ -8,7 +8,7 @@ use std::{
 
 use byteorder::{BigEndian, ReadBytesExt};
 use evenio::world::World;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::{
     event::{PlayerJoinEvent, PlayerMessageEvent, PlayerMoveEvent, SetBlockEvent},
@@ -182,7 +182,7 @@ pub struct PositionPacket {
 
 impl C2SPacket for PositionPacket {
     fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
-        let entity_id = client_info.player_id.lock().unwrap().clone();
+        let entity_id = client_info.player_id.lock().unwrap();
 
         world.send(PlayerMoveEvent {
             pos: vec3(self.x.into(), self.y.into(), self.z.into()),

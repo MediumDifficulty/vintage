@@ -1,14 +1,12 @@
-use std::{str::FromStr, sync::Arc, thread};
+use std::{sync::Arc, thread, time::Duration};
 
 use anyhow::Result;
 use evenio::prelude::*;
-use glam::{uvec3, vec3, Vec3};
+use glam::{uvec3, vec3};
 use tokio::sync::{broadcast, mpsc};
-use tracing::{debug, error, info, Level};
+use tracing::{error, info, Level};
 use vintage::{
-    default::{self, config::PlayerSpawnLocation}, event::PlayerDisconnectEvent, networking::listener::{self, ClientMessage}, world::{
-        Block, BlockWorld, PlayerIdAllocator,
-    }
+    default::{self, config::PlayerSpawnLocation}, event::PlayerDisconnectEvent, networking::listener::{self, ClientMessage}, util::add_periodic_saver, world::{Block, BlockWorld, TickEvent}
 };
 
 enum WorldEvent {
@@ -16,14 +14,11 @@ enum WorldEvent {
     ClientMessage(ClientMessage),
 }
 
-#[derive(Event)]
-struct TickEvent;
-
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_thread_names(true)
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::DEBUG)
         .init();
 
     info!("Starting");
@@ -43,24 +38,18 @@ async fn main() -> Result<()> {
     let block_world = world.spawn();
     world.insert(
         block_world,
-        BlockWorld::new(uvec3(128, 64, 128), |dims, world| {
+        BlockWorld::new_or_load_from_file("./level.bin", uvec3(128, 64, 128), |dims, world| {
             for x in 0..dims.x {
                 for y in 0..31 {
                     for z in 0..dims.z {
-                        world.set_block(
-                            uvec3(x, y, z),
-                            Block::Dirt,
-                        );
+                        world.set_block(uvec3(x, y, z), Block::Dirt);
                     }
                 }
             }
 
             for x in 0..dims.x {
                 for z in 0..dims.z {
-                    world.set_block(
-                        uvec3(x, 32, z),
-                        Block::GrassBlock,
-                    );
+                    world.set_block(uvec3(x, 32, z), Block::GrassBlock);
                 }
             }
         }),
@@ -71,6 +60,7 @@ async fn main() -> Result<()> {
     let broadcast_tx = Arc::new(broadcast_tx);
 
     default::add_default_handlers(&mut world, broadcast_tx.clone());
+    add_periodic_saver(&mut world, Duration::from_secs(60), "./level.bin");
 
     tokio::spawn(listener::listen("127.0.0.1:8080", tx, broadcast_tx));
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
@@ -113,4 +103,3 @@ async fn main() -> Result<()> {
 fn tick_handler(_: Receiver<TickEvent>) {
     // info!("Handling tick");
 }
-

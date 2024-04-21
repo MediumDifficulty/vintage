@@ -1,13 +1,14 @@
 use std::{
-    io::{Read, Write},
+    fs::{self, File},
+    io::{Cursor, Read, Write},
     net::SocketAddr,
     ops::Sub,
 };
 
 use anyhow::Result;
-use byteorder::{BigEndian, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use enum_primitive::FromPrimitive;
-use evenio::{component::Component, entity::EntityId};
+use evenio::{component::Component, entity::EntityId, event::Event};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use glam::{UVec3, Vec3};
 use tokio::sync::mpsc;
@@ -106,6 +107,12 @@ impl Sub for Rotation {
 }
 
 #[derive(Component)]
+pub struct TickRate(pub u32);
+
+#[derive(Event)]
+pub struct TickEvent;
+
+#[derive(Component)]
 pub struct BlockWorld {
     dimensions: UVec3,
     blocks: Vec<Block>,
@@ -167,7 +174,12 @@ impl BlockWorld {
         let mut buffer = Vec::with_capacity(
             dimensions.x as usize * dimensions.y as usize * dimensions.z as usize,
         );
+        let block_amount = data.read_i32::<BigEndian>()?;
         data.read_to_end(&mut buffer)?;
+
+        if block_amount as u32 != dimensions.x * dimensions.y * dimensions.z {
+            return Err(anyhow::anyhow!("Invalid block amount"));
+        }
 
         let blocks = buffer
             .iter()
@@ -175,6 +187,44 @@ impl BlockWorld {
             .collect::<Vec<_>>();
 
         Ok(Self { dimensions, blocks })
+    }
+
+    pub fn load_from_file(path: &str) -> Result<Self> {
+        let mut reader = File::open(path)?;
+        let dim_x = reader.read_i16::<BigEndian>()?;
+        let dim_y = reader.read_i16::<BigEndian>()?;
+        let dim_z = reader.read_i16::<BigEndian>()?;
+
+        let mut data = Vec::with_capacity(dim_x as usize * dim_y as usize * dim_z as usize);
+        reader.read_to_end(&mut data)?;
+
+        Self::deserialise(&data, UVec3::new(dim_x as u32, dim_y as u32, dim_z as u32))
+    }
+
+    pub fn save_to_file(&self, path: &str) -> Result<()> {
+        let mut writer = Cursor::new(Vec::with_capacity(self.blocks.len() + 6));
+        writer.write_i16::<BigEndian>(self.dimensions.x as i16)?;
+        writer.write_i16::<BigEndian>(self.dimensions.y as i16)?;
+        writer.write_i16::<BigEndian>(self.dimensions.z as i16)?;
+
+        let data = self.serialise()?;
+        writer.write_all(&data)?;
+
+        fs::write(path, writer.into_inner())?;
+
+        Ok(())
+    }
+
+    pub fn new_or_load_from_file(
+        path: &str,
+        dimensions: UVec3,
+        generator: impl FnOnce(UVec3, &mut Self),
+    ) -> Self {
+        if let Ok(world) = Self::load_from_file(path) {
+            world
+        } else {
+            Self::new(dimensions, generator)
+        }
     }
 
     pub fn dims(&self) -> UVec3 {
