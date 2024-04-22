@@ -4,7 +4,6 @@ use std::{
 };
 
 use anyhow::Result;
-use enum_primitive::FromPrimitive;
 use evenio::{entity::EntityId, world::World};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -13,9 +12,9 @@ use tokio::{
 };
 use tracing::{info, trace, warn};
 
-use crate::networking::{c2s::PacketReader, s2c::PacketWriter, ClientPacketID};
+use crate::networking::{c2s::PacketReader, s2c::PacketWriter};
 
-use super::{c2s::C2SPacket, s2c::S2CPacket};
+use super::{c2s::C2SPacket, s2c::S2CPacket, ClientPacketRegistry};
 
 pub struct ClientInfo {
     pub packet_sender: mpsc::Sender<Box<dyn S2CPacket>>,
@@ -43,9 +42,10 @@ pub async fn listen<A: ToSocketAddrs>(
     addr: A,
     tx: mpsc::Sender<ClientMessage>,
     broadcaster: Arc<broadcast::Sender<Arc<Box<dyn S2CPacket>>>>,
+    registry: ClientPacketRegistry,
 ) {
     let listener = TcpListener::bind(addr).await.unwrap();
-    // let broadcaster = Arc::new(broadcaster);
+    let registry = Arc::new(registry);
 
     info!("Listening");
 
@@ -56,6 +56,7 @@ pub async fn listen<A: ToSocketAddrs>(
             addr,
             tx.clone(),
             broadcaster.subscribe(),
+            registry.clone(),
         ));
     }
 }
@@ -65,6 +66,7 @@ async fn handle_client(
     addr: SocketAddr,
     tx: mpsc::Sender<ClientMessage>,
     mut broadcaster: broadcast::Receiver<Arc<Box<dyn S2CPacket>>>,
+    registry: Arc<ClientPacketRegistry>,
 ) -> Result<()> {
     info!("Incoming connection from: {addr}");
 
@@ -94,7 +96,7 @@ async fn handle_client(
             }
             packet_id = socket.read_u8() => {
                 if let Ok(packet_id) = packet_id {
-                    let packet_id = match ClientPacketID::from_u8(packet_id) {
+                    let client_packet = match registry.get(packet_id) {
                         Some(packet_id) => packet_id,
                         None => {
                             warn!("Invalid packet ID: {packet_id}");
@@ -102,16 +104,17 @@ async fn handle_client(
                         },
                     };
 
-                    let mut packet_buf = vec![0u8; packet_id.size()];
+                    let mut packet_buf = vec![0u8; client_packet.size()];
                     socket.read_exact(&mut packet_buf).await?;
 
-                    let packet = packet_id
+                    let packet = client_packet
                         .deserialise(&mut PacketReader::new(packet_buf))
                         .unwrap();
 
 
                     // TODO: use env variable to make this if configurable
-                    if packet_id != ClientPacketID::Position {
+                    // Ignore position packets
+                    if packet_id != 0x08 {
                         trace!("Received packet: {packet:?}");
                     }
 

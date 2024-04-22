@@ -9,9 +9,9 @@ use crate::{
         PlayerDisconnectEvent, PlayerJoinEvent, PlayerMessageEvent, PlayerMoveEvent, SetBlockEvent,
     },
     networking::{
-        self,
+        self, c2s,
         s2c::{self, S2CPacket},
-        FShort, PacketString, Short,
+        ClientPacketRegistry, FShort, PacketString, Short,
     },
     world::{Block, BlockWorld, ClientConnection, Player, PlayerIdAllocator, Position, Rotation},
 };
@@ -24,19 +24,26 @@ pub fn add_default_handlers(
 ) {
     info!("Initialising default server configuration...");
 
-    world.add_handler(player_join_handler);
-    world.add_handler(set_block_handler);
-    world.add_handler(player_spawn_handler);
-    world.add_handler(player_disconnect_handler);
-    world.add_handler(player_despawn_handler);
-    world.add_handler(player_move_handler);
-    world.add_handler(player_message_handler);
+    world.add_handler(player_join_handler.low());
+    world.add_handler(set_block_handler.low());
+    world.add_handler(player_spawn_handler.low());
+    world.add_handler(player_disconnect_handler.low());
+    world.add_handler(player_despawn_handler.low());
+    world.add_handler(player_move_handler.low());
+    world.add_handler(player_message_handler.low());
 
     let player_id_allocator = world.spawn();
     world.insert(player_id_allocator, PlayerIdAllocator::new_empty());
 
     let packet_broadcaster = world.spawn();
     world.insert(packet_broadcaster, PacketBroadcaster(broadcaster));
+}
+
+pub fn add_default_packets(registry: &mut ClientPacketRegistry) {
+    registry.register::<c2s::PlayerIdentPacket>();
+    registry.register::<c2s::SetBlockPacket>();
+    registry.register::<c2s::PositionPacket>();
+    registry.register::<c2s::MessagePacket>();
 }
 
 pub mod config {

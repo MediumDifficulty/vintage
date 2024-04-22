@@ -6,7 +6,15 @@ use glam::{uvec3, vec3};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{error, info, Level};
 use vintage::{
-    default::{self, config::PlayerSpawnLocation}, event::PlayerDisconnectEvent, networking::listener::{self, ClientMessage}, util::add_periodic_saver, world::{Block, BlockWorld, TickEvent}
+    default::{self, config::PlayerSpawnLocation},
+    event::PlayerDisconnectEvent,
+    extension,
+    networking::{
+        listener::{self, ClientMessage},
+        ClientPacketRegistry,
+    },
+    util::add_periodic_saver,
+    world::{Block, BlockWorld, TickEvent},
 };
 
 enum WorldEvent {
@@ -59,10 +67,19 @@ async fn main() -> Result<()> {
     let (broadcast_tx, _) = broadcast::channel(32);
     let broadcast_tx = Arc::new(broadcast_tx);
 
+    let mut packet_registry = ClientPacketRegistry::default();
+    default::add_default_packets(&mut packet_registry);
+
     default::add_default_handlers(&mut world, broadcast_tx.clone());
     add_periodic_saver(&mut world, Duration::from_secs(60), "./level.bin");
+    extension::add_cpe_handlers(&mut world);
 
-    tokio::spawn(listener::listen("127.0.0.1:8080", tx, broadcast_tx));
+    tokio::spawn(listener::listen(
+        "127.0.0.1:8080",
+        tx,
+        broadcast_tx,
+        packet_registry,
+    ));
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
 
     let (world_tx, mut world_rx) = mpsc::channel::<WorldEvent>(32);
@@ -98,8 +115,4 @@ async fn main() -> Result<()> {
             }
         }
     }
-}
-
-fn tick_handler(_: Receiver<TickEvent>) {
-    // info!("Handling tick");
 }

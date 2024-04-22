@@ -50,7 +50,7 @@ impl PacketReader {
         Ok(FShort(self.buffer.read_i16::<BigEndian>()?))
     }
 
-    pub fn read_string(&mut self) -> Result<PacketString> {
+    pub fn read_packet_string(&mut self) -> Result<PacketString> {
         let mut buf = [0; PacketString::LENGTH];
 
         self.buffer.read_exact(&mut buf)?;
@@ -69,9 +69,13 @@ impl PacketReader {
 
 pub trait C2SPacket: Send + Sync + Debug {
     fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()>;
-    fn deserialise(reader: &mut PacketReader) -> Result<Self>
-    where
-        Self: Sized;
+}
+
+pub trait C2SPacketEntry {
+    const ID: Byte;
+    const SIZE: usize;
+
+    fn deserialise(reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>>;
 }
 
 /// Sent by a player joining a server with relevant information. The protocol version is 0x07, unless you're using a client below 0.28.
@@ -80,6 +84,26 @@ pub struct PlayerIdentPacket {
     protocol_version: Byte,
     username: PacketString,
     verification_key: PacketString,
+    padding: Byte,
+}
+
+impl C2SPacketEntry for PlayerIdentPacket {
+    const ID: Byte = 0x00;
+    const SIZE: usize = 1 + 2 * PacketString::LENGTH + 1;
+
+    fn deserialise(reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
+        let protocol_version = reader.read_byte()?;
+        let username = reader.read_packet_string()?;
+        let verification_key = reader.read_packet_string()?;
+        let padding = reader.read_byte()?;
+
+        Ok(Box::new(Self {
+            protocol_version,
+            username,
+            verification_key,
+            padding,
+        }))
+    }
 }
 
 impl C2SPacket for PlayerIdentPacket {
@@ -103,24 +127,10 @@ impl C2SPacket for PlayerIdentPacket {
         world.send(PlayerJoinEvent {
             entity_id: player,
             username: self.username.to_string(),
+            cpe: self.padding == 0x42,
         });
 
         Ok(())
-    }
-
-    fn deserialise(reader: &mut PacketReader) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let protocol_version = reader.read_byte()?;
-        let username = reader.read_string()?;
-        let verification_key = reader.read_string()?;
-
-        Ok(Self {
-            protocol_version,
-            username,
-            verification_key,
-        })
     }
 }
 
@@ -138,6 +148,27 @@ pub struct SetBlockPacket {
     block_type: Byte,
 }
 
+impl C2SPacketEntry for SetBlockPacket {
+    const ID: Byte = 0x05;
+    const SIZE: usize = 3 * 2 + 2;
+
+    fn deserialise(reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
+        let x = reader.read_short()?;
+        let y = reader.read_short()?;
+        let z = reader.read_short()?;
+        let mode = reader.read_byte()?;
+        let block_type = reader.read_byte()?;
+
+        Ok(Box::new(Self {
+            x,
+            y,
+            z,
+            mode,
+            block_type,
+        }))
+    }
+}
+
 impl C2SPacket for SetBlockPacket {
     fn exec(&self, world: &mut World, _client_info: &ClientInfo) -> Result<()> {
         world.send(SetBlockEvent {
@@ -147,25 +178,6 @@ impl C2SPacket for SetBlockPacket {
         });
 
         Ok(())
-    }
-
-    fn deserialise(reader: &mut PacketReader) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let x = reader.read_short()?;
-        let y = reader.read_short()?;
-        let z = reader.read_short()?;
-        let mode = reader.read_byte()?;
-        let block_type = reader.read_byte()?;
-
-        Ok(Self {
-            x,
-            y,
-            z,
-            mode,
-            block_type,
-        })
     }
 }
 
@@ -178,6 +190,29 @@ pub struct PositionPacket {
     z: FShort,
     yaw: Byte,
     pitch: Byte,
+}
+
+impl C2SPacketEntry for PositionPacket {
+    const ID: Byte = 0x08;
+    const SIZE: usize = 1 + 3 * 2 + 2;
+
+    fn deserialise(reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
+        let player_id = reader.read_sbyte()?;
+        let x = reader.read_fshort()?;
+        let y = reader.read_fshort()?;
+        let z = reader.read_fshort()?;
+        let yaw = reader.read_byte()?;
+        let pitch = reader.read_byte()?;
+
+        Ok(Box::new(Self {
+            player_id,
+            x,
+            y,
+            z,
+            yaw,
+            pitch,
+        }))
+    }
 }
 
 impl C2SPacket for PositionPacket {
@@ -195,27 +230,6 @@ impl C2SPacket for PositionPacket {
 
         Ok(())
     }
-
-    fn deserialise(reader: &mut PacketReader) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let player_id = reader.read_sbyte()?;
-        let x = reader.read_fshort()?;
-        let y = reader.read_fshort()?;
-        let z = reader.read_fshort()?;
-        let yaw = reader.read_byte()?;
-        let pitch = reader.read_byte()?;
-
-        Ok(Self {
-            player_id,
-            x,
-            y,
-            z,
-            yaw,
-            pitch,
-        })
-    }
 }
 
 /// Contain chat messages sent by player. Player ID is always -1 (255), referring to itself.
@@ -223,6 +237,18 @@ impl C2SPacket for PositionPacket {
 pub struct MessagePacket {
     player_id: SByte,
     message: PacketString,
+}
+
+impl C2SPacketEntry for MessagePacket {
+    const ID: Byte = 0x0d;
+    const SIZE: usize = 1 + PacketString::LENGTH;
+
+    fn deserialise(reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
+        let player_id = reader.read_sbyte()?;
+        let message = reader.read_packet_string()?;
+
+        Ok(Box::new(Self { player_id, message }))
+    }
 }
 
 impl C2SPacket for MessagePacket {
@@ -233,15 +259,5 @@ impl C2SPacket for MessagePacket {
         });
 
         Ok(())
-    }
-
-    fn deserialise(reader: &mut PacketReader) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let player_id = reader.read_sbyte()?;
-        let message = reader.read_string()?;
-
-        Ok(Self { player_id, message })
     }
 }

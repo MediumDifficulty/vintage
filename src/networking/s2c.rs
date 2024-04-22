@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use byteorder::{BigEndian, WriteBytesExt};
 
-use super::{Byte, ByteArray, FByte, FShort, PacketString, SByte, Short};
+use super::{extension::Int, Byte, ByteArray, FByte, FShort, PacketString, SByte, Short};
 
 pub struct PacketWriter {
     buffer: Cursor<Vec<u8>>,
@@ -80,6 +80,10 @@ impl PacketWriter {
 
     pub fn write_byte_array(&mut self, buf: &[u8; 1024]) -> Result<()> {
         Ok(self.buffer.write_all(buf)?)
+    }
+
+    pub fn write_int(&mut self, i: Int) -> Result<()> {
+        Ok(self.buffer.write_i32::<BigEndian>(i)?)
     }
 }
 

@@ -9,6 +9,7 @@ use crate::world::{Block, Rotation};
 pub struct PlayerJoinEvent {
     pub entity_id: EntityId,
     pub username: String,
+    pub cpe: bool,
 }
 
 #[derive(Debug, Event)]

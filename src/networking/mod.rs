@@ -1,11 +1,11 @@
-use crate::networking::c2s::PlayerIdentPacket;
 use anyhow::Result;
 use core::fmt::Debug;
 use std::str::FromStr;
 
-use self::c2s::{C2SPacket, MessagePacket, PacketReader, PositionPacket, SetBlockPacket};
+use self::c2s::{C2SPacket, C2SPacketEntry, PacketReader};
 
 pub mod c2s;
+pub mod extension;
 pub mod listener;
 pub mod s2c;
 pub mod util;
@@ -80,32 +80,41 @@ impl Debug for PacketString {
     }
 }
 
-enum_from_primitive! {
-#[derive(Debug, PartialEq, Eq)]
-pub enum ClientPacketID {
-    PlayerIdent = 0x00,
-    SetBlock    = 0x05,
-    Position    = 0x08,
-    Message     = 0x0d,
-}
+#[derive(Default)]
+pub struct ClientPacketRegistry {
+    packets: Vec<Option<ClientPacketRegistryEntry>>,
 }
 
-impl ClientPacketID {
-    pub fn size(&self) -> usize {
-        match self {
-            ClientPacketID::PlayerIdent => 1 + 2 * PacketString::LENGTH + 1,
-            ClientPacketID::SetBlock => 3 * 2 + 2,
-            ClientPacketID::Position => 1 + 3 * 2 + 2,
-            ClientPacketID::Message => 1 + PacketString::LENGTH,
+struct ClientPacketRegistryEntry {
+    size: usize,
+    deserialiser: fn(&mut PacketReader) -> Result<Box<dyn C2SPacket>>,
+}
+
+impl ClientPacketRegistry {
+    pub fn register<P: C2SPacketEntry>(&mut self) {
+        let id = P::ID;
+
+        if self.packets.len() <= id as usize {
+            self.packets.resize_with(id as usize + 1, || None);
         }
+
+        self.packets[id as usize] = Some(ClientPacketRegistryEntry {
+            size: P::SIZE,
+            deserialiser: P::deserialise,
+        });
     }
 
+    fn get(&self, id: Byte) -> Option<&ClientPacketRegistryEntry> {
+        self.packets[id as usize].as_ref()
+    }
+}
+
+impl ClientPacketRegistryEntry {
     pub fn deserialise(&self, reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
-        match self {
-            ClientPacketID::PlayerIdent => Ok(Box::new(PlayerIdentPacket::deserialise(reader)?)),
-            ClientPacketID::SetBlock => Ok(Box::new(SetBlockPacket::deserialise(reader)?)),
-            ClientPacketID::Position => Ok(Box::new(PositionPacket::deserialise(reader)?)),
-            ClientPacketID::Message => Ok(Box::new(MessagePacket::deserialise(reader)?)),
-        }
+        (self.deserialiser)(reader)
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
     }
 }

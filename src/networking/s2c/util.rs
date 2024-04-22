@@ -2,7 +2,6 @@ use anyhow::Ok;
 use anyhow::Result;
 use glam::Vec3;
 use tokio::sync::mpsc;
-use tracing::debug;
 
 use crate::networking::util::to_angle_byte;
 use crate::networking::FByte;
