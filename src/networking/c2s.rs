@@ -83,6 +83,7 @@ pub trait C2SPacketEntry {
 pub struct PlayerIdentPacket {
     protocol_version: Byte,
     username: PacketString,
+    #[allow(unused)]
     verification_key: PacketString,
     padding: Byte,
 }
@@ -184,6 +185,7 @@ impl C2SPacket for SetBlockPacket {
 /// Sent frequently (even while not moving) by the player with the player's current location and orientation. Player ID is always -1 (255), referring to itself.
 #[derive(Debug)]
 pub struct PositionPacket {
+    #[allow(unused)]
     player_id: SByte,
     x: FShort,
     y: FShort,
@@ -235,6 +237,7 @@ impl C2SPacket for PositionPacket {
 /// Contain chat messages sent by player. Player ID is always -1 (255), referring to itself.
 #[derive(Debug)]
 pub struct MessagePacket {
+    #[allow(unused)]
     player_id: SByte,
     message: PacketString,
 }

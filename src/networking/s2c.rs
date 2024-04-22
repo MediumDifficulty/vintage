@@ -34,13 +34,7 @@ impl PacketWriter {
         }
     }
 
-    pub fn write_packet(&mut self, packet: &impl S2CPacket) -> Result<()> {
-        self.write_byte(packet.id())?;
-        packet.serialise(self)?;
-        Ok(())
-    }
-
-    pub fn write_packet_boxed(&mut self, packet: &Box<dyn S2CPacket>) -> Result<()> {
+    pub fn write_packet(&mut self, packet: &dyn S2CPacket) -> Result<()> {
         self.write_byte(packet.id())?;
         packet.serialise(self)?;
         Ok(())

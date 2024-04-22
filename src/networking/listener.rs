@@ -82,14 +82,14 @@ async fn handle_client(
         tokio::select! {
             packet = receiver.recv() => {
                 if let Some(packet) = packet {
-                    write_packet(&packet, &mut socket).await?;
+                    write_packet(packet.as_ref(), &mut socket).await?;
                 } else {
                     break;
                 }
             }
             packet = broadcaster.recv() => {
                 if let Ok(packet) = packet {
-                    write_packet(packet.as_ref(), &mut socket).await?;
+                    write_packet(packet.as_ref().as_ref(), &mut socket).await?;
                 } else {
                     break;
                 }
@@ -132,11 +132,10 @@ async fn handle_client(
     Ok(())
 }
 
-// FIXME: Remove &Box
-async fn write_packet(packet: &Box<dyn S2CPacket>, socket: &mut TcpStream) -> Result<()> {
+async fn write_packet(packet: &dyn S2CPacket, socket: &mut TcpStream) -> Result<()> {
     trace!("Sending packet: {:?}", packet);
     let mut writer = PacketWriter::new_with_capacity(1);
-    writer.write_packet_boxed(packet)?;
+    writer.write_packet(packet)?;
     socket.write_all(&writer.into_inner()).await?;
 
     Ok(())

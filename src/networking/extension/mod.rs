@@ -29,14 +29,6 @@ impl S2CPacket for ExtInfoPacket {
 }
 
 impl C2SPacket for ExtInfoPacket {
-    // fn id(&self) -> super::Byte {
-    //     0x10
-    // }
-
-    // fn size(&self) -> usize {
-    //     67
-    // }
-
     fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
         todo!()
     }

@@ -80,11 +80,12 @@ impl Debug for PacketString {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ClientPacketRegistry {
     packets: Vec<Option<ClientPacketRegistryEntry>>,
 }
 
+#[derive(Debug)]
 struct ClientPacketRegistryEntry {
     size: usize,
     deserialiser: fn(&mut PacketReader) -> Result<Box<dyn C2SPacket>>,
