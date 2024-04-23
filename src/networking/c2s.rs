@@ -16,7 +16,8 @@ use crate::{
 };
 
 use super::{
-    listener::ClientInfo, util::angle_to_f32, Byte, FByte, FShort, PacketString, SByte, Short,
+    extension::Int, listener::ClientInfo, util::angle_to_f32, Byte, FByte, FShort, PacketString,
+    SByte, Short,
 };
 
 pub struct PacketReader {
@@ -56,6 +57,10 @@ impl PacketReader {
         self.buffer.read_exact(&mut buf)?;
 
         Ok(PacketString::new(buf))
+    }
+
+    pub fn read_int(&mut self) -> Result<Int> {
+        Ok(self.buffer.read_i32::<BigEndian>()?)
     }
 
     pub fn read_byte_array(&mut self) -> Result<[u8; 1024]> {

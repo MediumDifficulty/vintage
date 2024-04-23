@@ -85,8 +85,8 @@ pub struct ClientPacketRegistry {
     packets: Vec<Option<ClientPacketRegistryEntry>>,
 }
 
-#[derive(Debug)]
-struct ClientPacketRegistryEntry {
+#[derive(Debug, Clone)]
+pub struct ClientPacketRegistryEntry {
     size: usize,
     deserialiser: fn(&mut PacketReader) -> Result<Box<dyn C2SPacket>>,
 }
@@ -96,7 +96,7 @@ impl ClientPacketRegistry {
         let id = P::ID;
 
         if self.packets.len() <= id as usize {
-            self.packets.resize_with(id as usize + 1, || None);
+            self.packets.resize(id as usize + 1, None);
         }
 
         self.packets[id as usize] = Some(ClientPacketRegistryEntry {
@@ -105,7 +105,7 @@ impl ClientPacketRegistry {
         });
     }
 
-    fn get(&self, id: Byte) -> Option<&ClientPacketRegistryEntry> {
+    pub fn get(&self, id: Byte) -> Option<&ClientPacketRegistryEntry> {
         self.packets[id as usize].as_ref()
     }
 }

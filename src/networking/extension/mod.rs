@@ -65,3 +65,21 @@ impl S2CPacket for ExtEntryPacket {
         0x11
     }
 }
+
+impl C2SPacket for ExtEntryPacket {
+    fn exec(&self, world: &mut World, client_info: &ClientInfo) -> Result<()> {
+        todo!()
+    }
+}
+
+impl C2SPacketEntry for ExtEntryPacket {
+    const ID: Byte = 0x11;
+    const SIZE: usize = 69;
+
+    fn deserialise(reader: &mut PacketReader) -> Result<Box<dyn C2SPacket>> {
+        let ext_name = reader.read_packet_string()?;
+        let version = reader.read_int()?;
+
+        Ok(Box::new(ExtEntryPacket { ext_name, version }))
+    }
+}
